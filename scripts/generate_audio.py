@@ -36,13 +36,23 @@ def load_ts_banks() -> tuple[list[dict], list[dict]]:
       }).outputText;
       const mod = { exports: {} };
       const fn = new Function('exports', 'require', 'module', compiled);
-      fn(mod.exports, (id) => (id.includes('types') ? {} : require(id)), mod);
+      fn(
+        mod.exports,
+        (id) => {
+          if (id.includes('types')) return {};
+          if (id.includes('writingBank')) return { WRITING_BANK: [{}, {}, {}, {}, {}] };
+          return require(id);
+        },
+        mod
+      );
       return mod.exports;
     }
     const { LISTENING_BANK } = loadTs('./src/data/listeningBank.ts');
     const { DAILY_LISTENING_BANK } = loadTs('./src/data/dailyListeningBank.ts');
+    const { FULL_LISTENING_EXAM } = loadTs('./src/data/fullMockExams.ts');
     const { SPEAKING_BANK } = loadTs('./src/data/speakingBank.ts');
-    console.log(JSON.stringify({ listening: [...LISTENING_BANK, ...DAILY_LISTENING_BANK], speaking: SPEAKING_BANK }));
+    const fullMockParts = FULL_LISTENING_EXAM.parts.map((p) => p.partSet);
+    console.log(JSON.stringify({ listening: [...LISTENING_BANK, ...DAILY_LISTENING_BANK, ...fullMockParts], speaking: SPEAKING_BANK }));
     """
     raw = subprocess.check_output(
         ["node", "-e", js],

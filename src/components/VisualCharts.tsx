@@ -149,6 +149,7 @@ export const FurnaceDiagramSvg: React.FC<{ spec: DiagramVisualSpec }> = ({ spec 
 };
 
 export const TownMapSvg: React.FC<{ spec: ListeningMapSpec }> = ({ spec }) => {
+  const isParkMap = spec.title.toLowerCase().includes('botanical');
   return (
     <div className="rounded-2xl border border-orange-200 bg-orange-50/40 p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -161,6 +162,66 @@ export const TownMapSvg: React.FC<{ spec: ListeningMapSpec }> = ({ spec }) => {
         </span>
       </div>
       <div className="space-y-3">
+        {isParkMap ? (
+          <svg viewBox="0 0 360 230" className="w-full rounded-xl border border-orange-100 bg-white p-2">
+            {/* Park Outer Path & River */}
+            <path d="M 35 190 Q 15 110 45 45 L 310 45 Q 340 115 320 190 Z" fill="#F0FDF4" stroke="#BBF7D0" strokeWidth="2" />
+            <path d="M 285 20 Q 345 100 330 220" fill="none" stroke="#BAE6FD" strokeWidth="14" />
+            <text x="336" y="135" textAnchor="middle" fontSize="8" fontWeight="700" fill="#0369A1" transform="rotate(-82 336 135)">
+              River Bend
+            </text>
+            {/* Central Pond */}
+            <ellipse cx="180" cy="115" rx="52" ry="28" fill="#BAE6FD" stroke="#0284C7" strokeWidth="2" />
+            <text x="180" y="118" textAnchor="middle" fontSize="9" fontWeight="700" fill="#0369A1">
+              Central Pond
+            </text>
+            {/* North Gate & Car Park */}
+            <rect x="132" y="8" width="96" height="22" rx="4" fill="#E2E8F0" stroke="#64748B" strokeWidth="1.2" />
+            <text x="180" y="22" textAnchor="middle" fontSize="8" fontWeight="700" fill="#334155">
+              North Gate & Car Park
+            </text>
+            {/* Fountain Terrace & West Terrace */}
+            <rect x="242" y="132" width="44" height="24" rx="4" fill="#FEF3C7" stroke="#D97706" strokeWidth="1.2" />
+            <text x="264" y="147" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#92400E">
+              Fountain
+            </text>
+            <rect x="42" y="128" width="48" height="24" rx="4" fill="#E2E8F0" stroke="#64748B" strokeWidth="1.2" />
+            <text x="66" y="143" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#334155">
+              West Terrace
+            </text>
+            {/* Wooden Footbridge */}
+            <rect x="296" y="160" width="38" height="14" rx="3" fill="#FDE68A" stroke="#B45309" strokeWidth="1.5" />
+            <text x="315" y="155" textAnchor="middle" fontSize="7" fontWeight="700" fill="#92400E">
+              Footbridge
+            </text>
+            {/* Slots [16] - [20] */}
+            <rect x="256" y="96" width="42" height="28" rx="6" fill="#FFEDD5" stroke="#EA580C" strokeWidth="2" />
+            <text x="277" y="113" textAnchor="middle" fontSize="11" fontWeight="800" fill="#C2410C">
+              [16]
+            </text>
+            <rect x="158" y="60" width="44" height="24" rx="6" fill="#FFEDD5" stroke="#EA580C" strokeWidth="2" />
+            <text x="180" y="76" textAnchor="middle" fontSize="11" fontWeight="800" fill="#C2410C">
+              [17]
+            </text>
+            <rect x="92" y="34" width="44" height="26" rx="6" fill="#FFEDD5" stroke="#EA580C" strokeWidth="2" />
+            <text x="114" y="51" textAnchor="middle" fontSize="11" fontWeight="800" fill="#C2410C">
+              [18]
+            </text>
+            <rect x="44" y="88" width="44" height="28" rx="6" fill="#FFEDD5" stroke="#EA580C" strokeWidth="2" />
+            <text x="66" y="106" textAnchor="middle" fontSize="11" fontWeight="800" fill="#C2410C">
+              [19]
+            </text>
+            <rect x="260" y="178" width="44" height="26" rx="6" fill="#FFEDD5" stroke="#EA580C" strokeWidth="2" />
+            <text x="282" y="195" textAnchor="middle" fontSize="11" fontWeight="800" fill="#C2410C">
+              [20]
+            </text>
+            {/* South Main Gate */}
+            <rect x="136" y="198" width="88" height="22" rx="11" fill="#FF6B2C" />
+            <text x="180" y="212" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#FFFFFF">
+              ★ MAIN GATE (START)
+            </text>
+          </svg>
+        ) : (
         <svg viewBox="0 0 340 220" className="w-full rounded-xl border border-orange-100 bg-white p-2">
           {/* Roads */}
           <rect x="155" y="35" width="30" height="160" fill="#E2E8F0" />
@@ -202,6 +263,7 @@ export const TownMapSvg: React.FC<{ spec: ListeningMapSpec }> = ({ spec }) => {
             ★ YOU ARE HERE
           </text>
         </svg>
+        )}
 
         <div className="space-y-2">
           <div className="rounded-xl border border-slate-200 bg-white p-3">

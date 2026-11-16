@@ -239,3 +239,69 @@ export function detectWritingBulletPenalty(text: string): boolean {
   const lines = text.split('\n');
   return lines.some((line) => /^\s*([-*•]|\d+[.)])\s+/.test(line));
 }
+
+export interface FullExamPartSummary {
+  partNumber: number;
+  correct: number;
+  total: number;
+}
+
+export interface FullExamGradeSummary {
+  rawCorrect: number;
+  totalQuestions: number;
+  bandScore: number;
+  partSummaries: FullExamPartSummary[];
+  resultsByQNum: Record<number, GradeResult>;
+}
+
+/**
+ * Grades a full 40-question IELTS Reading or Listening exam and converts the raw mark
+ * using the official 40-question IELTS Band conversion tables.
+ */
+export function gradeFullExamSection(
+  parts: {
+    partNumber: number;
+    questions: (ReadingQuestion | ListeningQuestion)[];
+  }[],
+  answers: Record<string, string>,
+  skill: 'reading' | 'listening',
+  stream: IeltsStream
+): FullExamGradeSummary {
+  let rawCorrect = 0;
+  let totalQuestions = 0;
+  const resultsByQNum: Record<number, GradeResult> = {};
+  const partSummaries: FullExamPartSummary[] = [];
+
+  for (const part of parts) {
+    let partCorrect = 0;
+    for (const q of part.questions) {
+      const res = gradeObjectiveQuestion(q, answers[q.id]);
+      resultsByQNum[q.questionNumber] = res;
+      totalQuestions += 1;
+      if (res.isCorrect) {
+        rawCorrect += 1;
+        partCorrect += 1;
+      }
+    }
+    partSummaries.push({
+      partNumber: part.partNumber,
+      correct: partCorrect,
+      total: part.questions.length,
+    });
+  }
+
+  const bandScore =
+    totalQuestions === 40
+      ? skill === 'reading'
+        ? rawReadingToBand(rawCorrect, stream)
+        : rawListeningToBand(rawCorrect)
+      : estimateBandFromSet(rawCorrect, totalQuestions, skill, stream);
+
+  return {
+    rawCorrect,
+    totalQuestions,
+    bandScore,
+    partSummaries,
+    resultsByQNum,
+  };
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
   Highlighter,
@@ -22,13 +22,19 @@ import {
   Moon,
   Contrast,
   RefreshCw,
+  Award,
+  Unlock,
+  Lock,
+  Layers,
 } from 'lucide-react';
 import {
   DailyChallengePack,
   ErrorLogEntry,
   ExamContrastTheme,
   IeltsStream,
+  ListeningQuestion,
   PracticeSessionRecord,
+  ReadingQuestion,
   SkillId,
   UserProfileState,
 } from '../types/ielts';
@@ -36,14 +42,23 @@ import { READING_BANK } from '../data/readingBank';
 import { LISTENING_BANK } from '../data/listeningBank';
 import { WRITING_BANK } from '../data/writingBank';
 import { SPEAKING_BANK } from '../data/speakingBank';
+import {
+  FULL_LISTENING_EXAM,
+  FULL_READING_EXAMS,
+  FULL_WRITING_EXAMS,
+} from '../data/fullMockExams';
 import { AUDIO_MANIFEST } from '../data/audioManifest';
 import {
   countIeltsWords,
   detectWritingBulletPenalty,
   estimateBandFromSet,
+  FullExamGradeSummary,
+  gradeFullExamSection,
   gradeObjectiveQuestion,
 } from '../utils/grading';
 import { FurnaceDiagramSvg, TownMapSvg, WritingVisualRenderer } from './VisualCharts';
+import { QuestionGroupRenderer } from './QuestionGroupRenderer';
+import { ExamBottomNav, ExamNavPart } from './ExamBottomNav';
 
 interface SimulatorViewProps {
   initialSkill: SkillId;
@@ -78,6 +93,9 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   onSaveSpeakingNote,
 }) => {
   const [skill, setSkill] = useState<SkillId>(initialSkill);
+  const [simMode, setSimMode] = useState<'full-exam' | 'quick-drill'>(
+    initialSetId ? 'quick-drill' : 'full-exam'
+  );
   const [contrastTheme, setContrastTheme] = useState<ExamContrastTheme>('standard');
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg'>('base');
 
@@ -86,7 +104,36 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const allWritingPrompts = dailyPack ? [dailyPack.writing, ...WRITING_BANK] : WRITING_BANK;
   const allSpeakingSets = dailyPack ? [dailyPack.speaking, ...SPEAKING_BANK] : SPEAKING_BANK;
 
-  // Active dataset selection per skill
+  // Full 1:1 Exam active structures
+  const fullReadingExam = FULL_READING_EXAMS[stream];
+  const fullListeningExam = FULL_LISTENING_EXAM;
+  const fullWritingExam = FULL_WRITING_EXAMS[stream];
+
+  const [fullReadPartNum, setFullReadPartNum] = useState<1 | 2 | 3>(1);
+  const [fullListPartNum, setFullListPartNum] = useState<1 | 2 | 3 | 4>(1);
+  const [fullWriteTaskNum, setFullWriteTaskNum] = useState<1 | 2>(1);
+  const [fullActiveQNum, setFullActiveQNum] = useState<number>(1);
+  const [fullExamSummaries, setFullExamSummaries] = useState<
+    Record<string, FullExamGradeSummary | null>
+  >({});
+
+  // Full 1:1 Listening strict single-play + pre-read + 2:00 check state
+  const [unlockFullListeningAudio, setUnlockFullListeningAudio] = useState<boolean>(false);
+  const [fullListPreReadLeft, setFullListPreReadLeft] = useState<number>(0);
+  const [fullListPreReadActive, setFullListPreReadActive] = useState<boolean>(false);
+  const [fullListReviewLeft, setFullListReviewLeft] = useState<number>(120);
+  const [fullListReviewActive, setFullListReviewActive] = useState<boolean>(false);
+  const [fullListPlayedParts, setFullListPlayedParts] = useState<Record<number, boolean>>({});
+  const [fullListPlayingPart, setFullListPlayingPart] = useState<number | null>(null);
+  const [fullListAudioSec, setFullListAudioSec] = useState<number>(0);
+  const [fullListAudioDur, setFullListAudioDur] = useState<number>(0);
+  const [fullListLineIdx, setFullListLineIdx] = useState<number>(-1);
+  const [fullListShowScript, setFullListShowScript] = useState<boolean>(false);
+  const [fullListPlaybackRate, setFullListPlaybackRate] = useState<number>(1.0);
+  const fullListAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [timeExpiredNotice, setTimeExpiredNotice] = useState<string | null>(null);
+
+  // Active dataset selection per skill (Quick & Daily Drills)
   const [readingId, setReadingId] = useState<string>(
     initialSkill === 'reading' && initialSetId ? initialSetId : allReadingSets[0].id
   );
@@ -106,16 +153,20 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   useEffect(() => {
     setSkill(initialSkill);
     if (initialSetId) {
+      setSimMode('quick-drill');
       if (initialSkill === 'reading') setReadingId(initialSetId);
       if (initialSkill === 'listening') setListeningId(initialSetId);
       if (initialSkill === 'writing') setWritingId(initialSetId);
       if (initialSkill === 'speaking') setSpeakingId(initialSetId);
+    } else {
+      setSimMode('full-exam');
     }
   }, [initialSkill, initialSetId]);
 
   useEffect(() => {
     if (dailyPack && jumpToDailyOnRefreshRef.current) {
       jumpToDailyOnRefreshRef.current = false;
+      setSimMode('quick-drill');
       setReadingId(dailyPack.reading.id);
       setListeningId(dailyPack.listening.id);
       setWritingId(dailyPack.writing.id);
@@ -142,10 +193,29 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   // Exam countdown timer
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [secondsLeft, setSecondsLeft] = useState<number>(
-    activeReading.recommendedMinutes * 60
+    simMode === 'full-exam' ? 60 * 60 : activeReading.recommendedMinutes * 60
   );
 
   useEffect(() => {
+    setTimeExpiredNotice(null);
+    if (simMode === 'full-exam') {
+      const fullMins =
+        skill === 'reading'
+          ? 60
+          : skill === 'listening'
+            ? 32
+            : skill === 'writing'
+              ? 60
+              : 14;
+      setSecondsLeft(fullMins * 60);
+      setTimerRunning(false);
+      setFullActiveQNum(1);
+      setFullReadPartNum(1);
+      setFullListPartNum(1);
+      setFullWriteTaskNum(1);
+      return;
+    }
+
     let defaultMins = 20;
     if (skill === 'reading') defaultMins = activeReading.recommendedMinutes;
     if (skill === 'listening') defaultMins = activeListening.recommendedMinutes;
@@ -154,7 +224,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     setSecondsLeft(defaultMins * 60);
     setTimerRunning(false);
     setActiveQuestionIdx(0);
-  }, [skill, readingId, listeningId, writingId, speakingId]);
+  }, [skill, simMode, stream, readingId, listeningId, writingId, speakingId]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -203,12 +273,47 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   useEffect(() => {
     return () => {
       listeningAudioRef.current?.pause();
+      fullListAudioRef.current?.pause();
       promptAudioRef.current?.pause();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (fullListAudioRef.current) {
+      fullListAudioRef.current.playbackRate = fullListPlaybackRate;
+    }
+  }, [fullListPlaybackRate]);
+
+  useEffect(() => {
+    if (!fullListPreReadActive) return;
+    const id = window.setInterval(() => {
+      setFullListPreReadLeft((s) => {
+        if (s <= 1) {
+          setFullListPreReadActive(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [fullListPreReadActive]);
+
+  useEffect(() => {
+    if (!fullListReviewActive) return;
+    const id = window.setInterval(() => {
+      setFullListReviewLeft((s) => {
+        if (s <= 1) {
+          setFullListReviewActive(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [fullListReviewActive]);
 
   const stopAudio = () => {
     if (listeningAudioRef.current) {
@@ -393,13 +498,17 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       setPrepSecondsLeft((s) => {
         if (s <= 1) {
           setPrepRunning(false);
+          if (simMode === 'full-exam') {
+            setTalkSecondsLeft(120);
+            setTalkRunning(true);
+          }
           return 0;
         }
         return s - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [prepRunning]);
+  }, [prepRunning, simMode]);
 
   useEffect(() => {
     if (!talkRunning) return;
@@ -629,6 +738,303 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     setTimerRunning(false);
   };
 
+  // ==================== FULL 1:1 EXAM HELPERS ====================
+  const fullReadPart =
+    fullReadingExam.parts.find((p) => p.partNumber === fullReadPartNum) ?? fullReadingExam.parts[0];
+  const fullListPart =
+    fullListeningExam.parts.find((p) => p.partNumber === fullListPartNum) ?? fullListeningExam.parts[0];
+  const fullWriteTask = fullWriteTaskNum === 1 ? fullWritingExam.task1 : fullWritingExam.task2;
+  const fullListManifest = AUDIO_MANIFEST.listening[fullListPart.partSet.id];
+
+  const fullListPendingAutoPlayRef = useRef<boolean>(false);
+
+  const playFullListeningPartAudio = (partNum: number) => {
+    const targetPart = fullListeningExam.parts.find((p) => p.partNumber === partNum);
+    const manifest = targetPart ? AUDIO_MANIFEST.listening[targetPart.partSet.id] : undefined;
+    const el = fullListAudioRef.current;
+    if (!el || !manifest?.url) return;
+
+    if (!unlockFullListeningAudio && fullListPlayedParts[partNum]) return;
+    if (fullListPlayingPart === partNum) {
+      if (!unlockFullListeningAudio) return;
+      el.pause();
+      setFullListPlayingPart(null);
+      return;
+    }
+
+    if (!el.src.endsWith(manifest.url)) {
+      el.src = manifest.url;
+    }
+    el.playbackRate = fullListPlaybackRate;
+    setFullListPlayedParts((prev) => ({ ...prev, [partNum]: true }));
+    if (!timerRunning) setTimerRunning(true);
+    void el.play().then(
+      () => setFullListPlayingPart(partNum),
+      () => setFullListShowScript(true)
+    );
+  };
+
+  useEffect(() => {
+    if (!fullListPreReadActive && fullListPreReadLeft === 0 && fullListPendingAutoPlayRef.current) {
+      fullListPendingAutoPlayRef.current = false;
+      playFullListeningPartAudio(fullListPartNum);
+    }
+  }, [fullListPreReadActive, fullListPreReadLeft, fullListPartNum]);
+
+  const startFullListeningPreRead = () => {
+    fullListPendingAutoPlayRef.current = true;
+    setFullListPreReadLeft(fullListPart.preReadSeconds);
+    setFullListPreReadActive(true);
+    if (!timerRunning) setTimerRunning(true);
+  };
+
+  const fullReadNavParts: ExamNavPart[] = useMemo(
+    () =>
+      fullReadingExam.parts.map((p) => ({
+        partNumber: p.partNumber,
+        label: `Part ${p.partNumber} (${p.questionRange[0]}–${p.questionRange[1]})`,
+        questionNumbers: p.passage.questions.map((q) => q.questionNumber),
+      })),
+    [fullReadingExam]
+  );
+
+  const fullListNavParts: ExamNavPart[] = useMemo(
+    () =>
+      fullListeningExam.parts.map((p) => ({
+        partNumber: p.partNumber,
+        label: `Part ${p.partNumber} (${p.questionRange[0]}–${p.questionRange[1]})`,
+        questionNumbers: p.partSet.questions.map((q) => q.questionNumber),
+      })),
+    [fullListeningExam]
+  );
+
+  const fullReadQuestionIdByNum = useMemo(() => {
+    const map: Record<number, string> = {};
+    fullReadingExam.parts.forEach((p) => {
+      p.passage.questions.forEach((q) => {
+        map[q.questionNumber] = q.id;
+      });
+    });
+    return map;
+  }, [fullReadingExam]);
+
+  const fullListQuestionIdByNum = useMemo(() => {
+    const map: Record<number, string> = {};
+    fullListeningExam.parts.forEach((p) => {
+      p.partSet.questions.forEach((q) => {
+        map[q.questionNumber] = q.id;
+      });
+    });
+    return map;
+  }, [fullListeningExam]);
+
+  const jumpToFullQuestion = (qNum: number) => {
+    if (skill === 'reading') {
+      const targetPart = fullReadingExam.parts.find(
+        (p) => qNum >= p.questionRange[0] && qNum <= p.questionRange[1]
+      );
+      if (targetPart) setFullReadPartNum(targetPart.partNumber);
+    } else if (skill === 'listening') {
+      const targetPart = fullListeningExam.parts.find(
+        (p) => qNum >= p.questionRange[0] && qNum <= p.questionRange[1]
+      );
+      if (targetPart && targetPart.partNumber !== fullListPartNum) {
+        fullListAudioRef.current?.pause();
+        setFullListPlayingPart(null);
+        setFullListPartNum(targetPart.partNumber);
+      }
+    }
+    setFullActiveQNum(qNum);
+    window.setTimeout(() => {
+      const inputEl = document.getElementById(`exam-q-${qNum}`);
+      const cardEl = document.getElementById(`exam-card-${qNum}`);
+      const el = inputEl ?? cardEl;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (inputEl instanceof HTMLInputElement) inputEl.focus();
+      }
+    }, 50);
+  };
+
+  const buildErrorEntriesFromSummary = (
+    targetSkill: 'reading' | 'listening',
+    examId: string,
+    examTitle: string,
+    allQuestions: (ReadingQuestion | ListeningQuestion)[],
+    summary: FullExamGradeSummary
+  ): ErrorLogEntry[] => {
+    const errors: ErrorLogEntry[] = [];
+    allQuestions.forEach((q) => {
+      const res = summary.resultsByQNum[q.questionNumber];
+      if (!res || res.isCorrect) return;
+      const userAns = answers[q.id] ?? '';
+      let autoCategory: ErrorLogEntry['category'] = 'lexical-paraphrase';
+      if (res.exceededLimit) autoCategory = 'word-limit-spelling';
+      else if (q.type === 'true-false-not-given' || q.type === 'yes-no-not-given') {
+        autoCategory = 'logic-tfng';
+      } else if (targetSkill === 'listening') {
+        autoCategory = 'distractor-trap';
+      }
+
+      const quote =
+        'passageQuote' in q ? q.passageQuote : q.audioQuote;
+      errors.push({
+        id: `${examId}-${q.id}-${Date.now()}`,
+        skill: targetSkill,
+        setId: examId,
+        setTitle: examTitle,
+        questionId: q.id,
+        questionTypeLabel: q.typeLabel,
+        prompt: q.prompt,
+        userAnswer: userAns || '(Blank)',
+        correctAnswer: Array.isArray(q.correctAnswer)
+          ? q.correctAnswer.join(', ')
+          : q.correctAnswer,
+        quote,
+        explanation: q.explanation,
+        category: autoCategory,
+        timestamp: new Date().toISOString(),
+        resolved: false,
+      });
+    });
+    return errors;
+  };
+
+  const handleSubmitFullReading = () => {
+    const summary = gradeFullExamSection(
+      fullReadingExam.parts.map((p) => ({
+        partNumber: p.partNumber,
+        questions: p.passage.questions,
+      })),
+      answers,
+      'reading',
+      stream
+    );
+    const allQs = fullReadingExam.parts.flatMap((p) => p.passage.questions);
+    const newErrors = buildErrorEntriesFromSummary(
+      'reading',
+      fullReadingExam.id,
+      fullReadingExam.title,
+      allQs,
+      summary
+    );
+    setFullExamSummaries((prev) => ({ ...prev, [fullReadingExam.id]: summary }));
+    setTimerRunning(false);
+    onRecordCompletion(
+      {
+        id: `${fullReadingExam.id}-${Date.now()}`,
+        skill: 'reading',
+        setId: fullReadingExam.id,
+        title: fullReadingExam.title,
+        correctCount: summary.rawCorrect,
+        totalCount: 40,
+        bandEstimate: summary.bandScore,
+        minutesSpent: Math.max(5, Math.round((60 * 60 - secondsLeft) / 60)),
+        completedAt: new Date().toISOString(),
+      },
+      newErrors
+    );
+  };
+
+  const handleSubmitFullListening = () => {
+    const summary = gradeFullExamSection(
+      fullListeningExam.parts.map((p) => ({
+        partNumber: p.partNumber,
+        questions: p.partSet.questions,
+      })),
+      answers,
+      'listening',
+      stream
+    );
+    const allQs = fullListeningExam.parts.flatMap((p) => p.partSet.questions);
+    const newErrors = buildErrorEntriesFromSummary(
+      'listening',
+      fullListeningExam.id,
+      fullListeningExam.title,
+      allQs,
+      summary
+    );
+    setFullExamSummaries((prev) => ({ ...prev, [fullListeningExam.id]: summary }));
+    setTimerRunning(false);
+    setFullListPreReadActive(false);
+    setFullListReviewActive(false);
+    fullListPendingAutoPlayRef.current = false;
+    fullListAudioRef.current?.pause();
+    setFullListPlayingPart(null);
+    onRecordCompletion(
+      {
+        id: `${fullListeningExam.id}-${Date.now()}`,
+        skill: 'listening',
+        setId: fullListeningExam.id,
+        title: fullListeningExam.title,
+        correctCount: summary.rawCorrect,
+        totalCount: 40,
+        bandEstimate: summary.bandScore,
+        minutesSpent: Math.max(5, Math.round((32 * 60 - secondsLeft) / 60)),
+        completedAt: new Date().toISOString(),
+      },
+      newErrors
+    );
+  };
+
+  const handleResetFullReading = () => {
+    const cleared = { ...answers };
+    fullReadingExam.parts.forEach((p) =>
+      p.passage.questions.forEach((q) => {
+        delete cleared[q.id];
+      })
+    );
+    setAnswers(cleared);
+    setFullExamSummaries((prev) => ({ ...prev, [fullReadingExam.id]: null }));
+    setFullReadPartNum(1);
+    setFullActiveQNum(1);
+    setSecondsLeft(60 * 60);
+    setTimerRunning(false);
+    setTimeExpiredNotice(null);
+  };
+
+  const handleResetFullListening = () => {
+    const cleared = { ...answers };
+    fullListeningExam.parts.forEach((p) =>
+      p.partSet.questions.forEach((q) => {
+        delete cleared[q.id];
+      })
+    );
+    setAnswers(cleared);
+    setFullExamSummaries((prev) => ({ ...prev, [fullListeningExam.id]: null }));
+    setFullListPlayedParts({});
+    setFullListPartNum(1);
+    setFullActiveQNum(1);
+    setFullListPreReadActive(false);
+    setFullListPreReadLeft(0);
+    setFullListReviewActive(false);
+    setFullListReviewLeft(120);
+    setSecondsLeft(32 * 60);
+    setTimerRunning(false);
+    setTimeExpiredNotice(null);
+    fullListAudioRef.current?.pause();
+    setFullListPlayingPart(null);
+  };
+
+  useEffect(() => {
+    if (!timerRunning || secondsLeft > 0 || simMode !== 'full-exam') return;
+    setTimerRunning(false);
+    if (skill === 'reading' && !fullExamSummaries[fullReadingExam.id]) {
+      handleSubmitFullReading();
+      setTimeExpiredNotice('60:00 Reading exam timer finished — all 40 answers automatically graded.');
+    } else if (skill === 'listening' && !fullExamSummaries[fullListeningExam.id]) {
+      handleSubmitFullListening();
+      setTimeExpiredNotice('32:00 Listening exam timer finished — all 40 answers automatically graded.');
+    } else if (skill === 'writing') {
+      setTimeExpiredNotice('60:00 Writing exam timer finished — Task 1 & Task 2 drafts saved automatically.');
+    }
+  }, [timerRunning, secondsLeft, simMode, skill]);
+
+  const fullReadingSummary = fullExamSummaries[fullReadingExam.id] ?? null;
+  const fullListeningSummary = fullExamSummaries[fullListeningExam.id] ?? null;
+  const fullWriteT1Words = countIeltsWords(profile.writingDrafts[fullWritingExam.task1.id] ?? '');
+  const fullWriteT2Words = countIeltsWords(profile.writingDrafts[fullWritingExam.task2.id] ?? '');
+
   const themeClass =
     contrastTheme === 'yellow'
       ? 'exam-theme-yellow'
@@ -641,6 +1047,60 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
 
   return (
     <div className={`space-y-4 ${themeClass}`}>
+      {/* Mode Switcher Bar: Full 1:1 Exam vs Quick & Daily Drills */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-orange-200/80 bg-[#FFF8F4] px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl border border-orange-200 bg-white p-0.5 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setSimMode('full-exam')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                simMode === 'full-exam'
+                  ? 'bg-[#FF6B2C] text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Award className="h-3.5 w-3.5" />
+              <span>Full 1:1 IELTS Test (40Q • 60m)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSimMode('quick-drill')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                simMode === 'quick-drill'
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Quick & Daily Drills</span>
+            </button>
+          </div>
+          <span className="rounded-lg bg-white px-2.5 py-1 font-mono text-[11px] font-bold text-slate-600">
+            Candidate: {profile.candidateName} ({stream === 'academic' ? 'AC' : 'GT'})
+          </span>
+        </div>
+
+        <p className="text-[11px] font-semibold text-slate-500">
+          {simMode === 'full-exam'
+            ? 'Computer-Delivered IELTS simulation matching official timings & question layouts'
+            : 'Focused daily challenges & single-passage drills'}
+        </p>
+      </div>
+
+      {timeExpiredNotice && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900">
+          <span>{timeExpiredNotice}</span>
+          <button
+            type="button"
+            onClick={() => setTimeExpiredNotice(null)}
+            className="rounded-md bg-white px-2 py-0.5 text-[11px] text-amber-800"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Top IELTS-on-Computer Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-orange-200/80 bg-white px-4 py-3 shadow-2xs">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -778,7 +1238,162 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       )}
 
       {/* ==================== READING SIMULATOR ==================== */}
-      {skill === 'reading' && (
+      {skill === 'reading' && simMode === 'full-exam' && (
+        <div className="space-y-4">
+          {/* Post-Submission Full 40Q Band Score Report */}
+          {fullReadingSummary && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-700">
+                    Official 40-Question Reading Result ({stream === 'academic' ? 'Academic' : 'General Training'})
+                  </p>
+                  <h3 className="mt-0.5 text-lg font-extrabold text-slate-900">
+                    Raw Score: {fullReadingSummary.rawCorrect} / 40 → Band {fullReadingSummary.bandScore.toFixed(1)}
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {fullReadingSummary.partSummaries.map((ps) => (
+                    <div
+                      key={ps.partNumber}
+                      className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800"
+                    >
+                      Part {ps.partNumber}: <span className="text-[#FF6B2C]">{ps.correct}/{ps.total}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Split-Screen IELTS on Computer Layout */}
+          <div
+            className="grid gap-4 rounded-2xl border p-4 lg:grid-cols-2"
+            style={{
+              backgroundColor: 'var(--exam-bg)',
+              color: 'var(--exam-text)',
+              borderColor: 'var(--exam-border)',
+            }}
+          >
+            {/* Left Pane: Active Passage (Part 1, 2, or 3) */}
+            <div className="max-h-[560px] space-y-4 overflow-y-auto pr-2">
+              <div className="border-b pb-3" style={{ borderColor: 'var(--exam-border)' }}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-[11px] font-bold text-[#FF6B2C]">
+                    {fullReadPart.passage.sectionLabel} • {fullReadPart.passage.topicTag}
+                  </span>
+                  <span className="text-[11px] opacity-75">
+                    Click any sentence to highlight yellow
+                  </span>
+                </div>
+                <h3 className="mt-2 text-lg font-extrabold">{fullReadPart.passage.title}</h3>
+              </div>
+
+              {fullReadPart.passage.paragraphs.map((para) => {
+                const sentences = para.text.split(/(?<=[.!?])\s+/);
+                return (
+                  <div key={para.label} className={`leading-relaxed ${textSizeClass}`}>
+                    <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-xs font-extrabold text-[#FF6B2C]">
+                      {para.label}
+                    </span>
+                    {sentences.map((sent, sIdx) => {
+                      const hKey = `${fullReadPart.passage.id}-${para.label}-${sIdx}`;
+                      const isLit = !!highlightedSentences[hKey];
+                      return (
+                        <span
+                          key={hKey}
+                          onClick={() => toggleHighlight(hKey)}
+                          className={`cursor-pointer rounded transition ${
+                            isLit ? 'bg-yellow-300/75 text-slate-950' : 'hover:bg-orange-200/25'
+                          }`}
+                        >
+                          {sent}{' '}
+                        </span>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {fullReadPart.passage.glossary && (
+                <div
+                  className="rounded-xl border p-3 text-xs"
+                  style={{
+                    backgroundColor: 'var(--exam-surface)',
+                    borderColor: 'var(--exam-border)',
+                  }}
+                >
+                  <p className="font-bold">Passage Glossary</p>
+                  {fullReadPart.passage.glossary.map((g) => (
+                    <p key={g.term} className="mt-1">
+                      <strong>{g.term}:</strong> {g.definition}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right Pane: Grouped Questions & Inline Completion */}
+            <div
+              className="max-h-[560px] overflow-y-auto rounded-xl border p-3"
+              style={{
+                backgroundColor: 'var(--exam-surface)',
+                borderColor: 'var(--exam-border)',
+              }}
+            >
+              <QuestionGroupRenderer
+                groups={fullReadPart.questionGroups}
+                questions={fullReadPart.passage.questions}
+                answers={answers}
+                flagged={flagged}
+                activeQuestionNumber={fullActiveQNum}
+                submitted={Boolean(fullReadingSummary)}
+                textSizeClass={textSizeClass}
+                onSelectQuestion={(qNum) => setFullActiveQNum(qNum)}
+                onChangeAnswer={(qId, val) => setAnswers((prev) => ({ ...prev, [qId]: val }))}
+                onToggleFlag={(qId) => setFlagged((prev) => ({ ...prev, [qId]: !prev[qId] }))}
+              />
+            </div>
+          </div>
+
+          <ExamBottomNav
+            parts={fullReadNavParts}
+            activePartNumber={fullReadPartNum}
+            activeQuestionNumber={fullActiveQNum}
+            questionIdByNumber={fullReadQuestionIdByNum}
+            answers={answers}
+            flagged={flagged}
+            resultsByQNum={fullReadingSummary?.resultsByQNum}
+            submitted={Boolean(fullReadingSummary)}
+            submitLabel="Submit Full Reading (40Q)"
+            retakeLabel="Retake Full Reading"
+            scoreSummaryText={
+              fullReadingSummary
+                ? `Score: ${fullReadingSummary.rawCorrect}/40 • Band ${fullReadingSummary.bandScore.toFixed(1)}`
+                : undefined
+            }
+            isActiveFlagged={Boolean(
+              fullReadQuestionIdByNum[fullActiveQNum] &&
+                flagged[fullReadQuestionIdByNum[fullActiveQNum]]
+            )}
+            onSelectPart={(pn) => {
+              const typedPn = pn as 1 | 2 | 3;
+              setFullReadPartNum(typedPn);
+              const firstQ = fullReadingExam.parts[typedPn - 1]?.questionRange[0] ?? 1;
+              setFullActiveQNum(firstQ);
+            }}
+            onSelectQuestion={jumpToFullQuestion}
+            onToggleActiveFlag={() => {
+              const qId = fullReadQuestionIdByNum[fullActiveQNum];
+              if (qId) setFlagged((p) => ({ ...p, [qId]: !p[qId] }));
+            }}
+            onSubmit={handleSubmitFullReading}
+            onRetake={handleResetFullReading}
+          />
+        </div>
+      )}
+
+      {skill === 'reading' && simMode === 'quick-drill' && (
         <div className="space-y-4">
           {/* Set Switcher */}
           <div className="flex flex-wrap items-center gap-2">
@@ -1126,7 +1741,305 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       )}
 
       {/* ==================== LISTENING SIMULATOR ==================== */}
-      {skill === 'listening' && (
+      {skill === 'listening' && simMode === 'full-exam' && (
+        <div className="space-y-4">
+          {fullListeningSummary && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-700">
+                    Official 40-Question Listening Result
+                  </p>
+                  <h3 className="mt-0.5 text-lg font-extrabold text-slate-900">
+                    Raw Score: {fullListeningSummary.rawCorrect} / 40 → Band{' '}
+                    {fullListeningSummary.bandScore.toFixed(1)}
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {fullListeningSummary.partSummaries.map((ps) => (
+                    <div
+                      key={ps.partNumber}
+                      className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800"
+                    >
+                      Part {ps.partNumber}:{' '}
+                      <span className="text-[#FF6B2C]">
+                        {ps.correct}/{ps.total}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Audio Player Exam Control Bar */}
+          <div className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm">
+            <audio
+              key={fullListManifest?.url}
+              ref={fullListAudioRef}
+              src={fullListManifest?.url}
+              preload="metadata"
+              onLoadedMetadata={(e) => {
+                const dur = e.currentTarget.duration;
+                if (Number.isFinite(dur) && dur > 0) setFullListAudioDur(dur);
+              }}
+              onTimeUpdate={(e) => {
+                const t = e.currentTarget.currentTime;
+                setFullListAudioSec(t);
+                const seg = fullListManifest?.segments.find(
+                  (s) => t >= s.startSec && t <= s.endSec + 0.15
+                );
+                setFullListLineIdx(seg ? seg.lineIndex : -1);
+              }}
+              onEnded={() => {
+                setFullListPlayingPart(null);
+                setFullListLineIdx(-1);
+                if (!fullListeningSummary) {
+                  if (fullListPartNum < 4) {
+                    const nextNum = (fullListPartNum + 1) as 2 | 3 | 4;
+                    const nextPart = fullListeningExam.parts[nextNum - 1];
+                    setFullListPartNum(nextNum);
+                    setFullActiveQNum(nextPart.questionRange[0]);
+                    if (!unlockFullListeningAudio) {
+                      fullListPendingAutoPlayRef.current = true;
+                      setFullListPreReadLeft(nextPart.preReadSeconds);
+                      setFullListPreReadActive(true);
+                    }
+                  } else {
+                    setFullListReviewLeft(fullListeningExam.reviewSeconds);
+                    setFullListReviewActive(true);
+                  }
+                }
+              }}
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[#FF6B2C]/25 px-2.5 py-0.5 text-[11px] font-extrabold text-orange-300">
+                    Part {fullListPart.partNumber} (Questions {fullListPart.questionRange[0]}–
+                    {fullListPart.questionRange[1]})
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-300">
+                    {fullListPart.partSet.contextType} • {fullListPart.partSet.accentLabel}
+                  </span>
+                </div>
+                <h3 className="mt-1 text-base font-extrabold">{fullListPart.partSet.title}</h3>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {fullListPreReadActive && (
+                  <span className="rounded-lg bg-amber-400/20 px-3 py-1.5 font-mono text-xs font-extrabold text-amber-300">
+                    Look-Ahead: 00:{String(fullListPreReadLeft).padStart(2, '0')}
+                  </span>
+                )}
+                {fullListReviewActive && (
+                  <span className="rounded-lg bg-emerald-400/20 px-3 py-1.5 font-mono text-xs font-extrabold text-emerald-300">
+                    2-Min Check: {formatTimer(fullListReviewLeft)}
+                  </span>
+                )}
+
+                {!unlockFullListeningAudio &&
+                  !fullListPreReadActive &&
+                  fullListPlayingPart !== fullListPartNum &&
+                  !fullListPlayedParts[fullListPartNum] && (
+                    <button
+                      type="button"
+                      onClick={startFullListeningPreRead}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-orange-400" />
+                      <span>Start {fullListPart.preReadSeconds}s Pre-Read & Auto-Play</span>
+                    </button>
+                  )}
+
+                <button
+                  type="button"
+                  onClick={() => playFullListeningPartAudio(fullListPartNum)}
+                  disabled={
+                    !unlockFullListeningAudio &&
+                    (fullListPlayingPart === fullListPartNum || !!fullListPlayedParts[fullListPartNum])
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#FF6B2C] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#EA580C] disabled:opacity-45"
+                >
+                  {fullListPlayingPart === fullListPartNum ? (
+                    <>
+                      <Pause className="h-3.5 w-3.5 fill-current" />
+                      <span>
+                        {unlockFullListeningAudio ? 'Pause Audio' : `Playing Part ${fullListPartNum} (Locked)`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5 fill-current" />
+                      <span>
+                        {!unlockFullListeningAudio && fullListPlayedParts[fullListPartNum]
+                          ? `Part ${fullListPartNum} Played Once`
+                          : `Play Part ${fullListPartNum} Audio`}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setUnlockFullListeningAudio((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                    unlockFullListeningAudio
+                      ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300'
+                      : 'border-white/20 bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {unlockFullListeningAudio ? (
+                    <Unlock className="h-3.5 w-3.5" />
+                  ) : (
+                    <Lock className="h-3.5 w-3.5" />
+                  )}
+                  <span>
+                    {unlockFullListeningAudio ? 'Audio Unlocked (Self-Study)' : 'Self-Study Unlock Audio'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="font-mono text-[11px] font-semibold text-slate-300">
+                {formatTimer(Math.floor(fullListAudioSec))}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(1, fullListAudioDur || fullListManifest?.durationSec || 120)}
+                step={0.1}
+                value={fullListAudioSec}
+                disabled={!unlockFullListeningAudio}
+                onChange={(e) => {
+                  const t = parseFloat(e.target.value);
+                  if (fullListAudioRef.current) fullListAudioRef.current.currentTime = t;
+                  setFullListAudioSec(t);
+                }}
+                aria-label="Full exam listening scrubber"
+                className="h-1.5 flex-1 cursor-pointer accent-[#FF6B2C] disabled:cursor-not-allowed"
+              />
+              <span className="font-mono text-[11px] font-semibold text-slate-300">
+                {formatTimer(Math.round(fullListAudioDur || fullListManifest?.durationSec || 0))}
+              </span>
+
+              <select
+                value={fullListPlaybackRate}
+                onChange={(e) => setFullListPlaybackRate(parseFloat(e.target.value))}
+                disabled={!unlockFullListeningAudio}
+                className="rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white focus:outline-none disabled:opacity-45"
+              >
+                <option value={0.9} className="text-slate-900">
+                  0.9x
+                </option>
+                <option value={1.0} className="text-slate-900">
+                  1.0x
+                </option>
+                <option value={1.15} className="text-slate-900">
+                  1.15x
+                </option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setFullListShowScript((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-orange-300 hover:text-orange-200"
+              >
+                {fullListShowScript ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                <span>{fullListShowScript ? 'Hide Script' : 'Show Script'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            className={`grid gap-4 rounded-2xl border p-4 ${
+              fullListPart.partSet.mapSpec || fullListShowScript ? 'lg:grid-cols-2' : ''
+            }`}
+            style={{
+              backgroundColor: 'var(--exam-bg)',
+              color: 'var(--exam-text)',
+              borderColor: 'var(--exam-border)',
+            }}
+          >
+            {(fullListPart.partSet.mapSpec || fullListShowScript) && (
+              <div className="space-y-4">
+                {fullListPart.partSet.mapSpec && <TownMapSvg spec={fullListPart.partSet.mapSpec} />}
+                {fullListShowScript && (
+                  <div className="max-h-96 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-800">
+                    {fullListPart.partSet.dialogue.map((line, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-lg p-2 ${
+                          fullListLineIdx === i ? 'bg-orange-100 text-slate-950' : ''
+                        }`}
+                      >
+                        <strong className="text-[#EA580C]">{line.speaker}: </strong>
+                        <span>{line.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <QuestionGroupRenderer
+                groups={fullListPart.questionGroups}
+                questions={fullListPart.partSet.questions}
+                answers={answers}
+                flagged={flagged}
+                activeQuestionNumber={fullActiveQNum}
+                submitted={Boolean(fullListeningSummary)}
+                textSizeClass={textSizeClass}
+                onSelectQuestion={(qNum) => setFullActiveQNum(qNum)}
+                onChangeAnswer={(qId, val) => setAnswers((prev) => ({ ...prev, [qId]: val }))}
+                onToggleFlag={(qId) => setFlagged((prev) => ({ ...prev, [qId]: !prev[qId] }))}
+              />
+            </div>
+          </div>
+
+          <ExamBottomNav
+            parts={fullListNavParts}
+            activePartNumber={fullListPartNum}
+            activeQuestionNumber={fullActiveQNum}
+            questionIdByNumber={fullListQuestionIdByNum}
+            answers={answers}
+            flagged={flagged}
+            resultsByQNum={fullListeningSummary?.resultsByQNum}
+            submitted={Boolean(fullListeningSummary)}
+            submitLabel="Submit Full Listening (40Q)"
+            retakeLabel="Retake Full Listening"
+            scoreSummaryText={
+              fullListeningSummary
+                ? `Score: ${fullListeningSummary.rawCorrect}/40 • Band ${fullListeningSummary.bandScore.toFixed(1)}`
+                : undefined
+            }
+            isActiveFlagged={Boolean(
+              fullListQuestionIdByNum[fullActiveQNum] &&
+                flagged[fullListQuestionIdByNum[fullActiveQNum]]
+            )}
+            onSelectPart={(pn) => {
+              const typedPn = pn as 1 | 2 | 3 | 4;
+              fullListAudioRef.current?.pause();
+              setFullListPlayingPart(null);
+              setFullListPartNum(typedPn);
+              const firstQ = fullListeningExam.parts[typedPn - 1]?.questionRange[0] ?? 1;
+              setFullActiveQNum(firstQ);
+            }}
+            onSelectQuestion={jumpToFullQuestion}
+            onToggleActiveFlag={() => {
+              const qId = fullListQuestionIdByNum[fullActiveQNum];
+              if (qId) setFlagged((p) => ({ ...p, [qId]: !p[qId] }));
+            }}
+            onSubmit={handleSubmitFullListening}
+            onRetake={handleResetFullListening}
+          />
+        </div>
+      )}
+
+      {skill === 'listening' && simMode === 'quick-drill' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {allListeningSets.map((l) => (
@@ -1433,7 +2346,200 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       )}
 
       {/* ==================== WRITING STUDIO SIMULATOR ==================== */}
-      {skill === 'writing' && (
+      {skill === 'writing' && simMode === 'full-exam' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-orange-200/80 bg-white px-4 py-3">
+            <div>
+              <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-[11px] font-bold text-[#FF6B2C]">
+                {fullWritingExam.title}
+              </span>
+              <p className="mt-1 text-xs text-slate-600">
+                Both tasks share one 60-minute clock (Task 2 carries double weight: 66.7%). Drafts save automatically as you switch parts.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs font-bold">
+              <span
+                className={`rounded-lg px-2.5 py-1 ${
+                  fullWriteT1Words >= 150 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                }`}
+              >
+                Task 1: {fullWriteT1Words}/150w
+              </span>
+              <span
+                className={`rounded-lg px-2.5 py-1 ${
+                  fullWriteT2Words >= 250 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                }`}
+              >
+                Task 2: {fullWriteT2Words}/250w
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="grid gap-4 rounded-2xl border p-4 lg:grid-cols-2"
+            style={{
+              backgroundColor: 'var(--exam-bg)',
+              color: 'var(--exam-text)',
+              borderColor: 'var(--exam-border)',
+            }}
+          >
+            {/* Left: Prompt & Visual Data */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="rounded-full bg-[#FF6B2C]/15 px-2.5 py-0.5 text-[11px] font-bold text-[#FF6B2C]">
+                  {fullWriteTask.category}
+                </span>
+                <span className="text-xs font-semibold opacity-75">{fullWriteTask.weightLabel}</span>
+              </div>
+              <h3 className="text-lg font-extrabold">{fullWriteTask.title}</h3>
+              <p
+                className={`whitespace-pre-line rounded-xl border p-4 leading-relaxed ${textSizeClass}`}
+                style={{
+                  backgroundColor: 'var(--exam-surface)',
+                  borderColor: 'var(--exam-border)',
+                }}
+              >
+                {fullWriteTask.promptText}
+              </p>
+              {fullWriteTask.chartData && <WritingVisualRenderer data={fullWriteTask.chartData} />}
+            </div>
+
+            {/* Right: Computer-Delivered Writing Editor */}
+            <div
+              className="flex flex-col justify-between space-y-3 rounded-xl border p-4"
+              style={{
+                backgroundColor: 'var(--exam-surface)',
+                borderColor: 'var(--exam-border)',
+              }}
+            >
+              <div>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold">
+                    Part {fullWriteTaskNum} Editor (Auto-Saved)
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 font-mono text-xs font-extrabold ${
+                      (fullWriteTaskNum === 1 ? fullWriteT1Words : fullWriteT2Words) >=
+                      fullWriteTask.minWords
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    Words: {fullWriteTaskNum === 1 ? fullWriteT1Words : fullWriteT2Words} /{' '}
+                    {fullWriteTask.minWords} min
+                  </span>
+                </div>
+
+                {detectWritingBulletPenalty(profile.writingDrafts[fullWriteTask.id] ?? '') && (
+                  <div className="mb-2 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>
+                      Penalty Alert: Bullet points or numbered lists detected! IELTS requires continuous connected prose.
+                    </span>
+                  </div>
+                )}
+
+                <textarea
+                  value={profile.writingDrafts[fullWriteTask.id] ?? ''}
+                  onChange={(e) => onSaveWritingDraft(fullWriteTask.id, e.target.value)}
+                  rows={14}
+                  placeholder={`Write your Task ${fullWriteTaskNum} continuous prose response (minimum ${fullWriteTask.minWords} words)...`}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-[#FF6B2C] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3" style={{ borderColor: 'var(--exam-border)' }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requestAiCoach(
+                        'writing',
+                        `Task ${fullWriteTask.taskNumber} (${fullWriteTask.category}): ${fullWriteTask.title}`,
+                        fullWriteTask.promptText,
+                        profile.writingDrafts[fullWriteTask.id] ?? ''
+                      )
+                    }
+                    disabled={aiLoading}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#FF6B2C] px-4 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-[#EA580C] disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>{aiLoading ? 'Evaluating...' : `AI Evaluate Task ${fullWriteTaskNum}`}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowWritingModel((v) => !v)}
+                    className="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                  >
+                    {showWritingModel
+                      ? 'Hide Model Answer'
+                      : `View ${fullWriteTask.modelAnswer.bandEstimate} Model`}
+                  </button>
+                </div>
+              </div>
+
+              {aiError && <p className="text-xs font-semibold text-rose-600">{aiError}</p>}
+              {aiFeedback && (
+                <div className="rounded-xl border border-orange-200 bg-[#FAF8F6] p-4 text-xs text-slate-800">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="font-extrabold text-[#FF6B2C]">
+                      AI Writing Rubric Feedback (Task {fullWriteTaskNum})
+                    </span>
+                    <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600">
+                      {aiSource}
+                    </span>
+                  </div>
+                  <pre className="whitespace-pre-wrap font-sans leading-relaxed">{aiFeedback}</pre>
+                </div>
+              )}
+
+              {showWritingModel && (
+                <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 text-xs text-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-800">
+                      Model Response ({fullWriteTask.modelAnswer.bandEstimate})
+                    </span>
+                    <span className="font-mono font-bold text-emerald-700">
+                      {fullWriteTask.modelAnswer.wordCount} words
+                    </span>
+                  </div>
+                  {fullWriteTask.modelAnswer.paragraphs.map((p) => (
+                    <div key={p.role} className="rounded-lg bg-white p-3">
+                      <p className="text-[11px] font-bold uppercase text-[#FF6B2C]">{p.role}</p>
+                      <p className="mt-1 whitespace-pre-line leading-relaxed">{p.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <ExamBottomNav
+            parts={[
+              {
+                partNumber: 1,
+                label: 'Part 1: Task 1 (1/3 Weight)',
+                questionNumbers: [],
+                badgeText: `${fullWriteT1Words}/${fullWritingExam.task1.minWords}w`,
+              },
+              {
+                partNumber: 2,
+                label: 'Part 2: Task 2 (2/3 Weight)',
+                questionNumbers: [],
+                badgeText: `${fullWriteT2Words}/${fullWritingExam.task2.minWords}w`,
+              },
+            ]}
+            activePartNumber={fullWriteTaskNum}
+            onSelectPart={(pn) => {
+              setFullWriteTaskNum(pn as 1 | 2);
+              setShowWritingModel(false);
+              setAiFeedback(null);
+            }}
+          />
+        </div>
+      )}
+
+      {skill === 'writing' && simMode === 'quick-drill' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {allWritingPrompts.map((w) => (
@@ -1611,6 +2717,99 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       {/* ==================== SPEAKING SIMULATOR ==================== */}
       {skill === 'speaking' && (
         <div className="space-y-4">
+          {simMode === 'full-exam' && (
+            <div className="rounded-2xl border border-orange-200/80 bg-white p-4 shadow-2xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span className="rounded-full bg-[#FF6B2C]/15 px-2.5 py-0.5 text-[11px] font-extrabold text-[#FF6B2C]">
+                    1:1 IELTS Speaking Test Flow (11–14 Minutes)
+                  </span>
+                  <h3 className="mt-1 text-base font-extrabold text-slate-900">
+                    {activeSpeaking.title}
+                  </h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeakPhase('part1');
+                      setPrepRunning(false);
+                      setTalkRunning(false);
+                      setSecondsLeft(14 * 60);
+                      setTimerRunning(true);
+                      const firstQ = activeSpeaking.part1.questions[0];
+                      if (firstQ) speakPromptAloud(firstQ.prompt, firstQ.id);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#FF6B2C] px-3.5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#EA580C]"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span>Begin Sequential Exam (Part 1 → 3)</span>
+                  </button>
+                  {speakPhase !== 'part3' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (speakPhase === 'part1') {
+                          setSpeakPhase('part2');
+                          setPrepSecondsLeft(60);
+                          setPrepRunning(true);
+                        } else {
+                          setPrepRunning(false);
+                          setTalkRunning(false);
+                          setSpeakPhase('part3');
+                        }
+                      }}
+                      className="rounded-xl border border-slate-200 bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                    >
+                      {speakPhase === 'part1'
+                        ? 'Next: Part 2 Cue Card (Auto 1m Prep) →'
+                        : 'Next: Part 3 Discussion →'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {[
+                  {
+                    id: 'part1' as const,
+                    title: 'Stage 1: Part 1 Interview',
+                    sub: '4–5 min • Everyday Personal Questions',
+                  },
+                  {
+                    id: 'part2' as const,
+                    title: 'Stage 2: Part 2 Long Turn',
+                    sub: '1:00 Prep → Auto 2:00 Speaking Cue Card',
+                  },
+                  {
+                    id: 'part3' as const,
+                    title: 'Stage 3: Part 3 Discussion',
+                    sub: '4–5 min • Abstract Policy Follow-Ups',
+                  },
+                ].map((stage, idx) => {
+                  const active = speakPhase === stage.id;
+                  return (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      onClick={() => setSpeakPhase(stage.id)}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        active
+                          ? 'border-[#FF6B2C] bg-[#FFF8F4]'
+                          : 'border-slate-200 bg-[#FAF8F6] hover:border-orange-200'
+                      }`}
+                    >
+                      <p className="text-xs font-extrabold text-slate-900">
+                        {idx + 1}. {stage.title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">{stage.sub}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-2">
               {allSpeakingSets.map((sp) => (
@@ -1980,6 +3179,20 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
               )}
             </div>
           </div>
+
+          {simMode === 'full-exam' && (
+            <ExamBottomNav
+              parts={[
+                { partNumber: 1, label: 'Part 1: Interview (4–5m)', questionNumbers: [] },
+                { partNumber: 2, label: 'Part 2: Cue Card (3–4m)', questionNumbers: [] },
+                { partNumber: 3, label: 'Part 3: Discussion (4–5m)', questionNumbers: [] },
+              ]}
+              activePartNumber={speakPhase === 'part1' ? 1 : speakPhase === 'part2' ? 2 : 3}
+              onSelectPart={(pn) =>
+                setSpeakPhase(pn === 1 ? 'part1' : pn === 2 ? 'part2' : 'part3')
+              }
+            />
+          )}
         </div>
       )}
     </div>

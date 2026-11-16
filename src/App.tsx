@@ -354,8 +354,8 @@ export function App() {
   const handleNavigate = (tab: NavTab, skill?: SkillId, setId?: string) => {
     if (tab === 'lessons' && skill) setLessonSkill(skill);
     if (tab === 'exercises') setExerciseSkillFilter(skill ?? 'all');
-    if (tab === 'simulator' && skill) {
-      setSimSkill(skill);
+    if (tab === 'simulator') {
+      if (skill) setSimSkill(skill);
       setSimSetId(setId);
     }
     setActiveTab(tab);
@@ -402,12 +402,7 @@ export function App() {
           activeTab={activeTab}
           onSelectTab={(tab) => handleNavigate(tab)}
           unresolvedErrors={unresolvedErrors}
-          onQuickStartSimulator={() =>
-            handleOpenSimulator(
-              'reading',
-              READING_BANK.find((r) => r.stream === profile.stream)?.id ?? READING_BANK[0].id
-            )
-          }
+          onQuickStartSimulator={() => handleOpenSimulator('reading')}
         />
 
         {/* Center Main Workspace */}

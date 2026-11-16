@@ -185,6 +185,7 @@ export interface ReadingPassageSet {
 
 export type ListeningQuestionType =
   | 'multiple-choice'
+  | 'multiple-select'
   | 'matching'
   | 'map-labelling'
   | 'note-completion'
@@ -205,9 +206,10 @@ export interface ListeningQuestion {
   instructionNote?: string;
   prompt: string;
   options?: string[];
+  selectCount?: number;
   maxWords?: number;
   allowNumber?: boolean;
-  correctAnswer: string;
+  correctAnswer: string | string[];
   acceptedVariants?: string[];
   audioQuote: string;
   explanation: string;
@@ -391,4 +393,70 @@ export interface UserProfileState {
   speakingNotes: Record<string, string>;
   masteredVocabIds?: string[];
   customVocabCards?: VocabCard[];
+}
+
+export type QuestionGroupLayout =
+  | 'standard-list'
+  | 'inline-notes'
+  | 'inline-summary'
+  | 'inline-table'
+  | 'flow-chart';
+
+export interface QuestionGroup {
+  id: string;
+  rangeLabel: string;
+  title?: string;
+  instructionNote: string;
+  layout: QuestionGroupLayout;
+  optionBoxTitle?: string;
+  optionBoxItems?: string[];
+  inlineTemplate?: {
+    heading?: string;
+    bullets?: string[];
+    paragraphs?: string[];
+    tableHeaders?: string[];
+    tableRows?: string[][];
+  };
+  questionNumbers: number[];
+}
+
+export interface FullReadingPassage {
+  partNumber: 1 | 2 | 3;
+  questionRange: [number, number];
+  passage: ReadingPassageSet;
+  questionGroups: QuestionGroup[];
+}
+
+export interface FullReadingMockExam {
+  id: string;
+  stream: IeltsStream;
+  title: string;
+  totalMinutes: 60;
+  totalQuestions: 40;
+  parts: [FullReadingPassage, FullReadingPassage, FullReadingPassage];
+}
+
+export interface FullListeningPart {
+  partNumber: 1 | 2 | 3 | 4;
+  questionRange: [number, number];
+  preReadSeconds: number;
+  partSet: ListeningPartSet;
+  questionGroups: QuestionGroup[];
+}
+
+export interface FullListeningMockExam {
+  id: string;
+  title: string;
+  totalQuestions: 40;
+  reviewSeconds: 120;
+  parts: [FullListeningPart, FullListeningPart, FullListeningPart, FullListeningPart];
+}
+
+export interface FullWritingMockExam {
+  id: string;
+  stream: IeltsStream;
+  title: string;
+  totalMinutes: 60;
+  task1: WritingTaskPrompt;
+  task2: WritingTaskPrompt;
 }

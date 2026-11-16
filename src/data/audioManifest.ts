@@ -448,6 +448,366 @@ export const AUDIO_MANIFEST: {
           "endSec": 45.282
         }
       ]
+    },
+    "mock-list-p1": {
+      "url": "/audio/mock-list-p1.mp3",
+      "durationSec": 137.948,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 0.0,
+          "endSec": 5.808
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 6.358,
+          "endSec": 13.942
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 14.492,
+          "endSec": 20.804
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 21.354,
+          "endSec": 26.826
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 27.376,
+          "endSec": 32.992
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 33.542,
+          "endSec": 50.438
+        },
+        {
+          "lineIndex": 6,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 50.988,
+          "endSec": 60.324
+        },
+        {
+          "lineIndex": 7,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 60.874,
+          "endSec": 69.346
+        },
+        {
+          "lineIndex": 8,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 69.896,
+          "endSec": 79.04
+        },
+        {
+          "lineIndex": 9,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 79.59,
+          "endSec": 85.566
+        },
+        {
+          "lineIndex": 10,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 86.116,
+          "endSec": 96.388
+        },
+        {
+          "lineIndex": 11,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 96.938,
+          "endSec": 104.882
+        },
+        {
+          "lineIndex": 12,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 105.432,
+          "endSec": 120.984
+        },
+        {
+          "lineIndex": 13,
+          "speaker": "Owen (Patient)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 121.534,
+          "endSec": 126.934
+        },
+        {
+          "lineIndex": 14,
+          "speaker": "Claire (Receptionist)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 127.484,
+          "endSec": 137.948
+        }
+      ]
+    },
+    "mock-list-p2": {
+      "url": "/audio/mock-list-p2.mp3",
+      "durationSec": 160.732,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 0.0,
+          "endSec": 12.456
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 13.006,
+          "endSec": 30.694
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 31.244,
+          "endSec": 48.116
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 48.666,
+          "endSec": 65.802
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 66.352,
+          "endSec": 82.696
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 83.246,
+          "endSec": 103.814
+        },
+        {
+          "lineIndex": 6,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 104.364,
+          "endSec": 120.108
+        },
+        {
+          "lineIndex": 7,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 120.658,
+          "endSec": 130.042
+        },
+        {
+          "lineIndex": 8,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 130.592,
+          "endSec": 140.888
+        },
+        {
+          "lineIndex": 9,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 141.438,
+          "endSec": 150.75
+        },
+        {
+          "lineIndex": 10,
+          "speaker": "Hannah (Park Director)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 151.3,
+          "endSec": 160.732
+        }
+      ]
+    },
+    "mock-list-p3": {
+      "url": "/audio/mock-list-p3.mp3",
+      "durationSec": 152.858,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Dr. Patel (Supervisor)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 0.0,
+          "endSec": 10.44
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Leo (Student)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 10.99,
+          "endSec": 25.102
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Maya (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 25.652,
+          "endSec": 45.932
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Dr. Patel (Supervisor)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 46.482,
+          "endSec": 54.906
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Maya (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 55.456,
+          "endSec": 67.816
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Leo (Student)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 68.366,
+          "endSec": 84.206
+        },
+        {
+          "lineIndex": 6,
+          "speaker": "Dr. Patel (Supervisor)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 84.756,
+          "endSec": 98.364
+        },
+        {
+          "lineIndex": 7,
+          "speaker": "Leo (Student)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 98.914,
+          "endSec": 113.914
+        },
+        {
+          "lineIndex": 8,
+          "speaker": "Maya (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 114.464,
+          "endSec": 125.576
+        },
+        {
+          "lineIndex": 9,
+          "speaker": "Leo (Student)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 126.126,
+          "endSec": 134.118
+        },
+        {
+          "lineIndex": 10,
+          "speaker": "Maya (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 134.668,
+          "endSec": 143.572
+        },
+        {
+          "lineIndex": 11,
+          "speaker": "Leo (Student)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 144.122,
+          "endSec": 152.858
+        }
+      ]
+    },
+    "mock-list-p4": {
+      "url": "/audio/mock-list-p4.mp3",
+      "durationSec": 159.678,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 0.0,
+          "endSec": 12.408
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 12.958,
+          "endSec": 27.19
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 27.74,
+          "endSec": 38.252
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 38.802,
+          "endSec": 54.906
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 55.456,
+          "endSec": 68.224
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 68.774,
+          "endSec": 82.478
+        },
+        {
+          "lineIndex": 6,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 83.028,
+          "endSec": 98.004
+        },
+        {
+          "lineIndex": 7,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 98.554,
+          "endSec": 117.442
+        },
+        {
+          "lineIndex": 8,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 117.992,
+          "endSec": 138.656
+        },
+        {
+          "lineIndex": 9,
+          "speaker": "Prof. Bennett",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 139.206,
+          "endSec": 159.678
+        }
+      ]
     }
   },
   "speaking": {
