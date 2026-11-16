@@ -40,8 +40,9 @@ def load_ts_banks() -> tuple[list[dict], list[dict]]:
       return mod.exports;
     }
     const { LISTENING_BANK } = loadTs('./src/data/listeningBank.ts');
+    const { DAILY_LISTENING_BANK } = loadTs('./src/data/dailyListeningBank.ts');
     const { SPEAKING_BANK } = loadTs('./src/data/speakingBank.ts');
-    console.log(JSON.stringify({ listening: LISTENING_BANK, speaking: SPEAKING_BANK }));
+    console.log(JSON.stringify({ listening: [...LISTENING_BANK, ...DAILY_LISTENING_BANK], speaking: SPEAKING_BANK }));
     """
     raw = subprocess.check_output(
         ["node", "-e", js],

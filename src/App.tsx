@@ -18,6 +18,7 @@ import {
   PracticeSessionRecord,
   SkillId,
   UserProfileState,
+  VocabCard,
 } from './types/ielts';
 import { Sidebar } from './components/Sidebar';
 import { RightPanel } from './components/RightPanel';
@@ -25,6 +26,7 @@ import { DashboardView } from './components/DashboardView';
 import { LessonsView } from './components/LessonsView';
 import { ExercisesView } from './components/ExercisesView';
 import { SimulatorView } from './components/SimulatorView';
+import { VocabDeckView } from './components/VocabDeckView';
 import { SkillGraphView } from './components/SkillGraphView';
 import { BandCalculatorView } from './components/BandCalculatorView';
 import { MODULE_KNOWLEDGE } from './data/knowledgeBase';
@@ -32,6 +34,7 @@ import { READING_BANK } from './data/readingBank';
 import { LISTENING_BANK } from './data/listeningBank';
 import { WRITING_BANK } from './data/writingBank';
 import { SPEAKING_BANK } from './data/speakingBank';
+import { VOCAB_BANK } from './data/vocabBank';
 import { roundIeltsBand } from './utils/grading';
 
 const STORAGE_KEY = 'selfielts-profile-v1';
@@ -53,6 +56,8 @@ const DEFAULT_PROFILE: UserProfileState = {
   errorLog: [],
   writingDrafts: {},
   speakingNotes: {},
+  masteredVocabIds: [],
+  customVocabCards: [],
 };
 
 function loadInitialProfile(): UserProfileState {
@@ -70,6 +75,7 @@ const TAB_TITLES: Record<NavTab, string> = {
   lessons: 'Lessons & Strategy Guides',
   exercises: 'Exercise Bank',
   simulator: 'Computer-Delivered Simulator',
+  vocab: 'Vocabulary & Paraphrase Deck',
   'skill-graph': 'Skill Graph & Error Log',
   calculator: 'Band Score Calculator & Rubrics',
 };
@@ -281,8 +287,26 @@ export function App() {
       }
     });
 
+    [...VOCAB_BANK, ...(profile.customVocabCards ?? [])].forEach((v) => {
+      if (
+        v.term.toLowerCase().includes(q) ||
+        v.questionParaphrase.toLowerCase().includes(q) ||
+        v.definition.toLowerCase().includes(q)
+      ) {
+        results.push({
+          id: `vocab-${v.id}`,
+          title: `${v.term} -> ${v.questionParaphrase}`,
+          category: 'Vocab & Paraphrases',
+          action: () => {
+            setActiveTab('vocab');
+            setSearchFocused(false);
+          },
+        });
+      }
+    });
+
     return results.slice(0, 8);
-  }, [searchQuery]);
+  }, [searchQuery, profile.customVocabCards]);
 
   const handleNavigate = (tab: NavTab, skill?: SkillId, setId?: string) => {
     if (tab === 'lessons' && skill) setLessonSkill(skill);
@@ -535,6 +559,36 @@ export function App() {
                       [setId]: notes,
                     },
                   }))
+                }
+              />
+            )}
+
+            {activeTab === 'vocab' && (
+              <VocabDeckView
+                masteredIds={profile.masteredVocabIds ?? []}
+                customCards={profile.customVocabCards ?? []}
+                onToggleMastered={(cardId) =>
+                  setProfile((prev) => {
+                    const current = prev.masteredVocabIds ?? [];
+                    const exists = current.includes(cardId);
+                    return {
+                      ...prev,
+                      xpPoints: exists ? prev.xpPoints : prev.xpPoints + 20,
+                      masteredVocabIds: exists
+                        ? current.filter((id) => id !== cardId)
+                        : [...current, cardId],
+                    };
+                  })
+                }
+                onAddCustomCard={(card: VocabCard) =>
+                  setProfile((prev) => ({
+                    ...prev,
+                    xpPoints: prev.xpPoints + 10,
+                    customVocabCards: [card, ...(prev.customVocabCards ?? [])],
+                  }))
+                }
+                onAwardXp={(amount) =>
+                  setProfile((prev) => ({ ...prev, xpPoints: prev.xpPoints + amount }))
                 }
               />
             )}

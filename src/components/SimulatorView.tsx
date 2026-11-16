@@ -301,6 +301,40 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const [micError, setMicError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [spokenTranscript, setSpokenTranscript] = useState<string>('');
+  const [recordingElapsedSec, setRecordingElapsedSec] = useState<number>(0);
+  const [sttSupported, setSttSupported] = useState<boolean>(true);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+
+  useEffect(() => {
+    if (!isRecording) return;
+    const id = window.setInterval(() => {
+      setRecordingElapsedSec((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isRecording]);
+
+  const spokenWordCount = countIeltsWords(spokenTranscript);
+  const spokenFillerCount = (
+    spokenTranscript
+      .toLowerCase()
+      .match(/\b(um+|uh+|er+|ah+|like|you know|basically|literally)\b/g) ?? []
+  ).length;
+  const spokenWpm =
+    recordingElapsedSec >= 3 && spokenWordCount > 0
+      ? Math.round((spokenWordCount / recordingElapsedSec) * 60)
+      : 0;
+  const spokenDiscourseFound = [
+    'first off',
+    'having said that',
+    'on the flip side',
+    'to a certain extent',
+    'however',
+    'moreover',
+    'for instance',
+    'personally',
+    'in conclusion',
+  ].filter((m) => spokenTranscript.toLowerCase().includes(m));
 
   // Next.js AI Study & Rubric Coach state (POST /api/ai)
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -318,7 +352,8 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     mode: 'reading' | 'writing' | 'speaking',
     promptTitle: string,
     promptText: string,
-    userText: string
+    userText: string,
+    extra?: { spokenTranscript?: string; wpm?: number; fillerCount?: number }
   ) => {
     setAiLoading(true);
     setAiError(null);
@@ -326,7 +361,14 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, promptTitle, promptText, userText, stream }),
+        body: JSON.stringify({
+          mode,
+          promptTitle,
+          promptText,
+          userText,
+          stream,
+          ...extra,
+        }),
       });
       const data = (await res.json()) as {
         source?: string;
@@ -383,6 +425,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       const streamObj = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(streamObj);
       audioChunksRef.current = [];
+      setRecordingElapsedSec(0);
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
@@ -395,6 +438,43 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
+
+      // Start live browser SpeechRecognition alongside MediaRecorder when supported
+      type SpeechRecCtor = new () => {
+        continuous: boolean;
+        interimResults: boolean;
+        lang: string;
+        onresult: ((ev: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
+        onerror: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+      const win = window as unknown as {
+        SpeechRecognition?: SpeechRecCtor;
+        webkitSpeechRecognition?: SpeechRecCtor;
+      };
+      const SpeechCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
+      if (SpeechCtor) {
+        setSttSupported(true);
+        const rec = new SpeechCtor();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'en-GB';
+        rec.onresult = (ev) => {
+          const combined: string[] = [];
+          for (let i = 0; i < ev.results.length; i += 1) {
+            combined.push(ev.results[i][0].transcript);
+          }
+          setSpokenTranscript(combined.join(' ').trim());
+        };
+        rec.onerror = () => {
+          // Non-fatal; audio recording still continues cleanly
+        };
+        rec.start();
+        recognitionRef.current = rec;
+      } else {
+        setSttSupported(false);
+      }
     } catch {
       setMicError('Microphone permission denied or no mic connected.');
     }
@@ -403,6 +483,14 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const stopMicRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignore already stopped recognition
+      }
+      recognitionRef.current = null;
     }
     setIsRecording(false);
   };
@@ -1760,7 +1848,12 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                         'speaking',
                         activeSpeaking.part2.cueCardTitle,
                         activeSpeaking.part2.bullets.join('; '),
-                        profile.speakingNotes[activeSpeaking.id] ?? ''
+                        profile.speakingNotes[activeSpeaking.id] ?? '',
+                        {
+                          spokenTranscript,
+                          wpm: spokenWpm,
+                          fillerCount: spokenFillerCount,
+                        }
                       )
                     }
                     disabled={aiLoading}
@@ -1782,6 +1875,68 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                 {recordedAudioUrl && (
                   <audio controls src={recordedAudioUrl} className="mt-3 w-full" />
                 )}
+
+                {/* Live Speech-to-Text + WPM & Filler Telemetry */}
+                <div className="mt-4 space-y-2.5 border-t border-orange-200/70 pt-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg bg-white px-2.5 py-2 text-center shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Spoken Words</p>
+                      <p className="font-mono text-sm font-extrabold text-slate-900">
+                        {spokenWordCount}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-white px-2.5 py-2 text-center shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">
+                        Pace (Band 7: 120–150)
+                      </p>
+                      <p
+                        className={`font-mono text-sm font-extrabold ${
+                          spokenWpm >= 115 && spokenWpm <= 160
+                            ? 'text-emerald-600'
+                            : spokenWpm > 0
+                              ? 'text-amber-600'
+                              : 'text-slate-900'
+                        }`}
+                      >
+                        {spokenWpm > 0 ? `${spokenWpm} WPM` : '-- WPM'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-white px-2.5 py-2 text-center shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Filler Words</p>
+                      <p
+                        className={`font-mono text-sm font-extrabold ${
+                          spokenFillerCount > 3 ? 'text-rose-600' : 'text-slate-900'
+                        }`}
+                      >
+                        {spokenFillerCount}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-700">
+                        Live Speech Transcript {isRecording && sttSupported ? '(Listening...)' : '(Editable)'}
+                      </span>
+                      {spokenDiscourseFound.length > 0 && (
+                        <span className="font-semibold text-emerald-700">
+                          Markers: {spokenDiscourseFound.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      value={spokenTranscript}
+                      onChange={(e) => setSpokenTranscript(e.target.value)}
+                      rows={3}
+                      placeholder={
+                        sttSupported
+                          ? 'Click "Record Voice Answer" to transcribe live as you speak — or type/paste your answer here to analyze fillers and WPM...'
+                          : 'Speech recognition is unavailable in this browser — type or paste your spoken answer here for AI Fluency Coach review.'
+                      }
+                      className="w-full rounded-xl border border-orange-200/80 bg-white p-2.5 text-xs leading-relaxed text-slate-800 focus:border-[#FF6B2C] focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               {aiError && <p className="text-xs font-semibold text-rose-600">{aiError}</p>}

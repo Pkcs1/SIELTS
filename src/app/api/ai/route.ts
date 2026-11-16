@@ -8,6 +8,9 @@ interface AiRequestBody {
   promptTitle: string;
   promptText: string;
   userText: string;
+  spokenTranscript?: string;
+  wpm?: number;
+  fillerCount?: number;
   stream?: string;
 }
 
@@ -104,21 +107,57 @@ function buildLocalHeuristicFeedback(body: AiRequestBody): string {
 
   if (mode === 'speaking') {
     const noteCount = words.length;
-    return [
-      `IELTS Speaking Cue-Card Coach`,
+    const transcript = (body.spokenTranscript ?? '').trim();
+    const spokenWords = transcript ? transcript.split(/\s+/).filter(Boolean).length : 0;
+    const fillerCount = body.fillerCount ?? 0;
+    const wpm = body.wpm ?? 0;
+
+    const lines = [
+      `IELTS Speaking Cue-Card & Fluency Coach`,
       ``,
       `Topic: ${promptTitle}`,
       `- Prep Notes Check: ${
         noteCount === 0
-          ? 'No keyword notes yet. Use the 1-minute prep timer to jot 2–3 short keywords/collocations per bullet point (do NOT write full sentences).'
+          ? 'No keyword notes yet. Use the 1-minute prep timer to jot 2–3 short keywords/collocations per bullet point.'
           : noteCount > 45
-            ? `You wrote ${noteCount} words in your prep pad — trim these into rapid keywords & collocations so you can finish outlining inside 60 seconds.`
+            ? `You wrote ${noteCount} words in your prep pad — condense these into rapid keywords so you finish outlining inside 60 seconds.`
             : `Good concise keyword outline (${noteCount} words) ready for a 2-minute talk.`
       }`,
-      `- Fluency Target (Band 7+): Aim to speak continuously for 1m 45s – 2m 00s using content-planning pauses rather than searching for words.`,
-      `- Recommended Discourse Markers: "I'd like to talk about...", "What struck me most was...", "On the flip side...", "If we look at the broader picture..." (for Part 3).`,
-      `- Recording Tip: Use the Practice Recording Booth to verify natural stress on content words and check for repeated fillers ("um", "like").`,
-    ].join('\n');
+    ];
+
+    if (spokenWords > 0) {
+      const paceStatus =
+        wpm >= 115 && wpm <= 160
+          ? 'Ideal Band 7.0–8.5 conversational pace (120–150 WPM).'
+          : wpm > 0 && wpm < 115
+            ? 'Slightly slow pace (<115 WPM) — focus on linking clauses without word-search pauses.'
+            : wpm > 160
+              ? 'Very rapid pace (>160 WPM) — slow slightly on key content words for clearer pronunciation & stress-timing.'
+              : 'Transcript captured cleanly.';
+
+      const lowerSpoken = transcript.toLowerCase();
+      const spokenMarkers = DISCOURSE_MARKERS.filter((m) => lowerSpoken.includes(m));
+      lines.push(
+        `- Spoken Transcript Metrics: ${spokenWords} words captured${wpm > 0 ? ` • ${wpm} WPM (${paceStatus})` : ''}.`,
+        `- Filler Word Audit: ${fillerCount} filler occurrence(s) ("um", "uh", "like", "you know", "basically") detected. ${
+          fillerCount <= 2
+            ? 'Clean delivery with minimal hesitation fillers!'
+            : 'Replace repeated "um/like" pauses with natural time-buying phrases like "That is an interesting point..."'
+        }`,
+        `- Spoken Discourse Markers Detected: ${
+          spokenMarkers.length > 0
+            ? spokenMarkers.join(', ')
+            : 'None detected yet — weave in "Having said that", "On the flip side", or "Another dimension is...".'
+        }`
+      );
+    } else {
+      lines.push(
+        `- Live Speech Transcript: Click "Record Voice Answer" (or paste/type your spoken response) to measure WPM pace and filler words.`,
+        `- Recommended Discourse Markers: "I'd like to talk about...", "What struck me most was...", "On the flip side...", "If we look at the broader picture...".`
+      );
+    }
+
+    return lines.join('\n');
   }
 
   // Reading Paraphrase & Lexis Unpacker
@@ -173,8 +212,8 @@ export async function POST(req: NextRequest) {
       userPrompt = `Track: ${body.stream ?? 'academic'}\nPrompt Title: ${body.promptTitle}\nPrompt:\n${body.promptText}\n\nCandidate Draft:\n${body.userText || '(Empty draft)'}`;
     } else if (body.mode === 'speaking') {
       systemInstruction +=
-        ' Coach the candidate on their IELTS Speaking Part 1-3 preparation notes. Provide: (1) feedback on their keyword outline, (2) 4 Band 7.5-8.5 collocations tailored to this cue card, and (3) one Part 3 abstract societal perspective angle.';
-      userPrompt = `Cue Card / Topic: ${body.promptTitle}\nDetails:\n${body.promptText}\n\nCandidate Keyword Notes:\n${body.userText || '(No notes yet)'}`;
+        ' Coach the candidate on their IELTS Speaking Part 1-3 preparation notes and spoken transcript across Fluency & Coherence, Lexical Resource, and Grammar. Provide concrete upgrades and 4 Band 7.5-8.5 collocations tailored to this cue card.';
+      userPrompt = `Cue Card / Topic: ${body.promptTitle}\nDetails:\n${body.promptText}\n\nPrep Keyword Notes:\n${body.userText || '(No notes yet)'}\n\nSpoken Transcript (${body.wpm ?? 0} WPM, ${body.fillerCount ?? 0} fillers):\n${body.spokenTranscript || '(No transcript recorded yet)'}`;
     } else {
       systemInstruction +=
         ' Help the IELTS Reading student decode this passage: extract 5 key academic vocabulary items with likely IELTS question paraphrases, highlight 2 tricky contrast/causal discourse markers, and remind which details could form FALSE vs NOT GIVEN traps.';

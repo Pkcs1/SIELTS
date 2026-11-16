@@ -4,6 +4,7 @@ import {
   BookOpen,
   ClipboardCheck,
   MonitorPlay,
+  BookMarked,
   BarChart3,
   Calculator,
   Sparkles,
@@ -23,6 +24,7 @@ const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ classN
   { id: 'lessons', label: 'Lessons & Guides', icon: BookOpen },
   { id: 'exercises', label: 'Exercise Bank', icon: ClipboardCheck },
   { id: 'simulator', label: 'Mock Simulator', icon: MonitorPlay },
+  { id: 'vocab', label: 'Vocab & Paraphrases', icon: BookMarked },
   { id: 'skill-graph', label: 'Skill Graph & Log', icon: BarChart3 },
   { id: 'calculator', label: 'Band & Rubrics', icon: Calculator },
 ];

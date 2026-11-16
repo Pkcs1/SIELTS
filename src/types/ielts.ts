@@ -7,6 +7,7 @@ export type NavTab =
   | 'lessons'
   | 'exercises'
   | 'simulator'
+  | 'vocab'
   | 'skill-graph'
   | 'calculator';
 
@@ -365,6 +366,16 @@ export interface PracticeSessionRecord {
   completedAt: string;
 }
 
+export interface VocabCard {
+  id: string;
+  term: string;
+  questionParaphrase: string;
+  definition: string;
+  contextSentence: string;
+  skill: SkillId;
+  bandLevel: 'Band 6.5' | 'Band 7.0' | 'Band 7.5' | 'Band 8.0+';
+}
+
 export interface UserProfileState {
   candidateName: string;
   stream: IeltsStream;
@@ -378,4 +389,6 @@ export interface UserProfileState {
   errorLog: ErrorLogEntry[];
   writingDrafts: Record<string, string>;
   speakingNotes: Record<string, string>;
+  masteredVocabIds?: string[];
+  customVocabCards?: VocabCard[];
 }

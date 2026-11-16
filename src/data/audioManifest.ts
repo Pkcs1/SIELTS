@@ -195,6 +195,259 @@ export const AUDIO_MANIFEST: {
           "endSec": 43.338
         }
       ]
+    },
+    "daily-listen-0": {
+      "url": "/audio/daily-listen-0.mp3",
+      "durationSec": 46.094,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Hannah (Applicant)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 0.0,
+          "endSec": 7.464
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Liam (Coordinator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 8.014,
+          "endSec": 17.902
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Hannah (Applicant)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 18.452,
+          "endSec": 23.852
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Liam (Coordinator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 24.402,
+          "endSec": 31.194
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Hannah (Applicant)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 31.744,
+          "endSec": 37.288
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Liam (Coordinator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 37.838,
+          "endSec": 46.094
+        }
+      ]
+    },
+    "daily-listen-1": {
+      "url": "/audio/daily-listen-1.mp3",
+      "durationSec": 49.574,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Chloe (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 0.0,
+          "endSec": 8.208
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Arthur (Curator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 8.758,
+          "endSec": 18.286
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Chloe (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 18.836,
+          "endSec": 25.412
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Arthur (Curator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 25.962,
+          "endSec": 33.09
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Chloe (Student)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 33.64,
+          "endSec": 40.672
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Arthur (Curator)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 41.222,
+          "endSec": 49.574
+        }
+      ]
+    },
+    "daily-listen-2": {
+      "url": "/audio/daily-listen-2.mp3",
+      "durationSec": 46.19,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Maya (Member)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 0.0,
+          "endSec": 6.816
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Daniel (Receptionist)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 7.366,
+          "endSec": 16.078
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Maya (Member)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 16.628,
+          "endSec": 21.836
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Daniel (Receptionist)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 22.386,
+          "endSec": 29.154
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Maya (Member)",
+          "voice": "en-GB-SoniaNeural",
+          "startSec": 29.704,
+          "endSec": 36.328
+        },
+        {
+          "lineIndex": 5,
+          "speaker": "Daniel (Receptionist)",
+          "voice": "en-US-GuyNeural",
+          "startSec": 36.878,
+          "endSec": 46.19
+        }
+      ]
+    },
+    "daily-listen-3": {
+      "url": "/audio/daily-listen-3.mp3",
+      "durationSec": 52.936,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Dr. Evans (Supervisor)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 0.0,
+          "endSec": 5.928
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Tessa (Researcher)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 6.478,
+          "endSec": 15.622
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Dr. Evans (Supervisor)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 16.172,
+          "endSec": 26.42
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Tessa (Researcher)",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 26.97,
+          "endSec": 39.882
+        },
+        {
+          "lineIndex": 4,
+          "speaker": "Dr. Evans (Supervisor)",
+          "voice": "en-GB-RyanNeural",
+          "startSec": 40.432,
+          "endSec": 52.936
+        }
+      ]
+    },
+    "daily-listen-4": {
+      "url": "/audio/daily-listen-4.mp3",
+      "durationSec": 43.938,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Prof. Mitchell",
+          "voice": "en-US-GuyNeural",
+          "startSec": 0.0,
+          "endSec": 7.08
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Prof. Mitchell",
+          "voice": "en-US-GuyNeural",
+          "startSec": 7.63,
+          "endSec": 19.198
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Prof. Mitchell",
+          "voice": "en-US-GuyNeural",
+          "startSec": 19.748,
+          "endSec": 32.54
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Prof. Mitchell",
+          "voice": "en-US-GuyNeural",
+          "startSec": 33.09,
+          "endSec": 43.938
+        }
+      ]
+    },
+    "daily-listen-5": {
+      "url": "/audio/daily-listen-5.mp3",
+      "durationSec": 45.282,
+      "segments": [
+        {
+          "lineIndex": 0,
+          "speaker": "Curator Guide",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 0.0,
+          "endSec": 10.512
+        },
+        {
+          "lineIndex": 1,
+          "speaker": "Curator Guide",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 11.062,
+          "endSec": 21.862
+        },
+        {
+          "lineIndex": 2,
+          "speaker": "Curator Guide",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 22.412,
+          "endSec": 34.34
+        },
+        {
+          "lineIndex": 3,
+          "speaker": "Curator Guide",
+          "voice": "en-AU-NatashaNeural",
+          "startSec": 34.89,
+          "endSec": 45.282
+        }
+      ]
     }
   },
   "speaking": {

@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { GoogleGenAI } from '@google/genai';
 import { DailyChallengePack, IeltsStream } from '../../../types/ielts';
 import { buildProceduralDailyPack } from '../../../utils/dailyGenerator';
-
-const execFileAsync = promisify(execFile);
 
 function getSafeDateString(rawDate: string | null): string {
   if (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
@@ -94,69 +90,6 @@ Return strictly valid JSON with keys: title, cueCardTitle, bullets (array of 4 s
   return basePack;
 }
 
-async function synthesizeDailyListeningAudio(
-  pack: DailyChallengePack,
-  dailyDir: string
-): Promise<DailyChallengePack> {
-  const cwdFn = process['cwd'].bind(process);
-  const root = cwdFn();
-  const pythonExe = path.join(root, '.venv', 'Scripts', 'python.exe');
-  const scriptPath = path.join(root, 'scripts', 'synthesize_dialogue.py');
-  const dialogueJsonPath = path.join(dailyDir, `${pack.packId}-dialogue.json`);
-  const outMp3Path = path.join(dailyDir, `${pack.packId}-listening.mp3`);
-  const metaJsonPath = path.join(dailyDir, `${pack.packId}-meta.json`);
-
-  try {
-    await fs.access(pythonExe);
-    await fs.writeFile(
-      dialogueJsonPath,
-      JSON.stringify({ dialogue: pack.listening.dialogue }, null, 2),
-      'utf-8'
-    );
-    await execFileAsync(
-      pythonExe,
-      [
-        scriptPath,
-        '--input',
-        dialogueJsonPath,
-        '--output',
-        outMp3Path,
-        '--meta',
-        metaJsonPath,
-      ],
-      { cwd: root, timeout: 60000 }
-    );
-    const metaRaw = await fs.readFile(metaJsonPath, 'utf-8');
-    const meta = JSON.parse(metaRaw) as {
-      durationSec: number;
-      segments: {
-        lineIndex: number;
-        speaker: string;
-        voice: string;
-        startSec: number;
-        endSec: number;
-      }[];
-    };
-    return {
-      ...pack,
-      listening: {
-        ...pack.listening,
-        audioMeta: {
-          url: `/api/daily-audio?file=${encodeURIComponent(`${pack.packId}-listening.mp3`)}`,
-          durationSec: meta.durationSec,
-          segments: meta.segments,
-        },
-      },
-    };
-  } catch (err) {
-    console.warn('Daily edge-tts synthesis skipped/unavailable:', err);
-    return pack;
-  } finally {
-    await fs.unlink(dialogueJsonPath).catch(() => {});
-    await fs.unlink(metaJsonPath).catch(() => {});
-  }
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -166,22 +99,36 @@ export async function GET(req: NextRequest) {
     const variant = Math.max(0, Math.min(30, Number(searchParams.get('variant') ?? '0') || 0));
 
     const packId = `daily-${date}-${stream}-v${variant}`;
-    const dailyDir = path.join(os.tmpdir(), 'selfielts-daily-cache');
-    await fs.mkdir(dailyDir, { recursive: true });
-    const cachePath = path.join(dailyDir, `${packId}.json`);
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const hasGemini = Boolean(apiKey && apiKey !== 'your_api_key_here');
 
-    try {
-      const cached = await fs.readFile(cachePath, 'utf-8');
-      return NextResponse.json(JSON.parse(cached) as DailyChallengePack);
-    } catch {
-      // Cache miss -> generate and synthesize neural MP3 for today's pack
+    if (hasGemini) {
+      const cachePath = path.join(os.tmpdir(), 'selfielts-daily-cache', `${packId}.json`);
+      try {
+        const cached = await fs.readFile(cachePath, 'utf-8');
+        return NextResponse.json(JSON.parse(cached) as DailyChallengePack);
+      } catch {
+        // Cache miss -> build and cache Gemini-enhanced pack
+      }
     }
 
     const basePack = buildProceduralDailyPack(date, stream, variant);
-    const maybeAiPack = await maybeEnhanceWithGemini(basePack);
-    const finalPack = await synthesizeDailyListeningAudio(maybeAiPack, dailyDir);
+    const finalPack = hasGemini ? await maybeEnhanceWithGemini(basePack) : basePack;
 
-    await fs.writeFile(cachePath, JSON.stringify(finalPack, null, 2), 'utf-8');
+    if (hasGemini) {
+      try {
+        const dailyDir = path.join(os.tmpdir(), 'selfielts-daily-cache');
+        await fs.mkdir(dailyDir, { recursive: true });
+        await fs.writeFile(
+          path.join(dailyDir, `${packId}.json`),
+          JSON.stringify(finalPack, null, 2),
+          'utf-8'
+        );
+      } catch {
+        // Ignore cache write failures on read-only serverless filesystems
+      }
+    }
+
     return NextResponse.json(finalPack);
   } catch (err) {
     console.error('Daily generator API error:', err);

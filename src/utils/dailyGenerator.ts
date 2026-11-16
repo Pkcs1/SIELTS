@@ -6,6 +6,8 @@ import {
   SpeakingTopicSet,
   WritingTaskPrompt,
 } from '../types/ielts';
+import { DAILY_LISTENING_BANK } from '../data/dailyListeningBank';
+import { AUDIO_MANIFEST } from '../data/audioManifest';
 
 function hashString(input: string): number {
   let h = 2166136261;
@@ -306,66 +308,6 @@ const READING_THEMES: ReadingThemeTemplate[] = [
   },
 ];
 
-interface ListeningScenario {
-  title: string;
-  contextType: string;
-  accentLabel: string;
-  partNumber: 1 | 2 | 3 | 4;
-  callerSpeaker: string;
-  hostSpeaker: string;
-  callerVoice: 'female-uk' | 'female-au';
-  hostVoice: 'male-uk' | 'male-us';
-  itemWordOptions: string[];
-  streetOptions: string[];
-  timeOptions: string[];
-  feeOptions: number[];
-}
-
-const LISTENING_SCENARIOS: ListeningScenario[] = [
-  {
-    title: 'Community Makerspace & Laser-Cutter Induction',
-    contextType: 'Part 1 • Everyday Social Dialogue',
-    accentLabel: 'British English',
-    partNumber: 1,
-    callerSpeaker: 'Hannah (Applicant)',
-    hostSpeaker: 'Liam (Coordinator)',
-    callerVoice: 'female-uk',
-    hostVoice: 'male-uk',
-    itemWordOptions: ['birch', 'acrylic', 'ceramic', 'aluminium'],
-    streetOptions: ['Alderney', 'Kestrel', 'Thornhill', 'Cromwell'],
-    timeOptions: ['6.15 pm', '6.45 pm', '7.15 pm', '5.30 pm'],
-    feeOptions: [28, 34, 42, 19],
-  },
-  {
-    title: 'Regional Herbarium Volunteer Registration',
-    contextType: 'Part 1 • Campus & Community Dialogue',
-    accentLabel: 'Australian & British',
-    partNumber: 1,
-    callerSpeaker: 'Chloe (Student)',
-    hostSpeaker: 'Arthur (Curator)',
-    callerVoice: 'female-au',
-    hostVoice: 'male-uk',
-    itemWordOptions: ['lichen', 'ferns', 'mosses', 'orchids'],
-    streetOptions: ['Lansdowne', 'Marigold', 'Hartwell', 'Beresford'],
-    timeOptions: ['8.45 am', '9.30 am', '10.15 am', '11.00 am'],
-    feeOptions: [15, 22, 25, 18],
-  },
-  {
-    title: 'Sports Centre Climbing Wall Membership',
-    contextType: 'Part 1 • Transactional Booking',
-    accentLabel: 'British & North American',
-    partNumber: 1,
-    callerSpeaker: 'Maya (Member)',
-    hostSpeaker: 'Daniel (Receptionist)',
-    callerVoice: 'female-uk',
-    hostVoice: 'male-us',
-    itemWordOptions: ['chalk', 'harness', 'carabiner', 'gloves'],
-    streetOptions: ['Ravenswood', 'Whitby', 'Clifton', 'Pennine'],
-    timeOptions: ['5.45 pm', '6.30 pm', '7.45 pm', '8.15 pm'],
-    feeOptions: [38, 45, 52, 29],
-  },
-];
-
 const SPEAKING_TOPICS_POOL = [
   {
     title: 'Practical Skill You Learned Outside School',
@@ -524,113 +466,21 @@ export function buildProceduralDailyPack(
     ],
   };
 
-  // 2. Listening Set (with distractor + spelled word + price + time!)
-  const lIdx = (hashString(seedKey + '-l') + variant) % LISTENING_SCENARIOS.length;
-  const lTemplate = LISTENING_SCENARIOS[lIdx];
-  const materialChoice = pick(lTemplate.itemWordOptions, rand);
-  const distractorMaterial =
-    lTemplate.itemWordOptions.find((m) => m !== materialChoice) ?? 'steel';
-  const streetChoice = pick(lTemplate.streetOptions, rand);
-  const timeChoice = pick(lTemplate.timeOptions, rand);
-  const feeChoice = pick(lTemplate.feeOptions, rand);
-  const feeDistractor = feeChoice + 10;
-  const spelledStreet = streetChoice.toUpperCase().split('').join('-');
+  // 2. Listening Set (Pre-bundled multi-accent neural MP3 from DAILY_LISTENING_BANK + AUDIO_MANIFEST)
+  const lIdx = (hashString(seedKey + '-l') + variant) % DAILY_LISTENING_BANK.length;
+  const baseListening = DAILY_LISTENING_BANK[lIdx];
+  const manifestAudio = AUDIO_MANIFEST.listening[baseListening.id];
 
   const listening: ListeningPartSet = {
+    ...baseListening,
     id: `${packId}-listening`,
-    partNumber: lTemplate.partNumber,
-    title: `${lTemplate.title} (${date})`,
-    contextType: lTemplate.contextType,
-    accentLabel: lTemplate.accentLabel,
-    recommendedMinutes: 6,
-    difficultyBand: 'Band 6.0 – 8.0',
+    title: `${baseListening.title} (${date})`,
     isDaily: true,
-    dialogue: [
-      {
-        speaker: lTemplate.callerSpeaker,
-        voiceRole: lTemplate.callerVoice,
-        text: `Good morning! I would like to register for today's induction session and confirm the entry fee and materials.`,
-      },
-      {
-        speaker: lTemplate.hostSpeaker,
-        voiceRole: lTemplate.hostVoice,
-        text: `Welcome! Originally we required ${distractorMaterial} supplies for beginners, though this term all workshops use standard ${materialChoice} kits provided on site.`,
-      },
-      {
-        speaker: lTemplate.callerSpeaker,
-        voiceRole: lTemplate.callerVoice,
-        text: `That saves hassle. Is the monthly fee still ${feeDistractor} pounds?`,
-      },
-      {
-        speaker: lTemplate.hostSpeaker,
-        voiceRole: lTemplate.hostVoice,
-        text: `Actually, we discounted student passes this month to ${feeChoice} pounds if you bring your ID card.`,
-      },
-      {
-        speaker: lTemplate.callerSpeaker,
-        voiceRole: lTemplate.callerVoice,
-        text: `Brilliant! And where is the annex building located, and what time do doors open?`,
-      },
-      {
-        speaker: lTemplate.hostSpeaker,
-        voiceRole: lTemplate.hostVoice,
-        text: `Head to 18 ${streetChoice} Road—that is spelled ${spelledStreet}. Evening induction starts promptly at ${timeChoice}.`,
-      },
-    ],
-    questions: [
-      {
-        id: `${packId}-lq1`,
-        questionNumber: 1,
-        type: 'note-completion',
-        typeLabel: 'Note Completion',
-        instructionNote: 'Write ONE WORD ONLY.',
-        prompt: 'Primary workshop material provided this term: _________.',
-        maxWords: 1,
-        correctAnswer: materialChoice,
-        audioQuote: `...all workshops use standard ${materialChoice} kits provided on site.`,
-        explanation: `"${distractorMaterial}" was mentioned first as a distractor, then corrected to "${materialChoice}".`,
-      },
-      {
-        id: `${packId}-lq2`,
-        questionNumber: 2,
-        type: 'short-answer',
-        typeLabel: 'Short-Answer Question',
-        instructionNote: 'Write ONE NUMBER ONLY.',
-        prompt: 'What is the discounted monthly fee (£) with an ID card?',
-        maxWords: 2,
-        allowNumber: true,
-        correctAnswer: String(feeChoice),
-        acceptedVariants: [`£${feeChoice}`, `${feeChoice} pounds`],
-        audioQuote: `Actually, we discounted student passes this month to ${feeChoice} pounds...`,
-        explanation: `${feeDistractor} was the original fee distractor; discounted price = ${feeChoice}.`,
-      },
-      {
-        id: `${packId}-lq3`,
-        questionNumber: 3,
-        type: 'note-completion',
-        typeLabel: 'Form Completion',
-        instructionNote: 'Write ONE WORD ONLY (exact spelling dictated).',
-        prompt: 'Annex address: 18 _________ Road.',
-        maxWords: 1,
-        correctAnswer: streetChoice,
-        audioQuote: `18 ${streetChoice} Road—that is spelled ${spelledStreet}.`,
-        explanation: `Dictated spelling matches ${streetChoice}.`,
-      },
-      {
-        id: `${packId}-lq4`,
-        questionNumber: 4,
-        type: 'short-answer',
-        typeLabel: 'Short-Answer Question',
-        instructionNote: 'Write NO MORE THAN TWO WORDS AND/OR A NUMBER.',
-        prompt: 'What time does the evening session start?',
-        maxWords: 2,
-        allowNumber: true,
-        correctAnswer: timeChoice,
-        acceptedVariants: [timeChoice.replace('.', ':')],
-        audioQuote: `...starts promptly at ${timeChoice}.`,
-        explanation: `Exact start time confirmed at ${timeChoice}.`,
-      },
-    ],
+    audioMeta: manifestAudio,
+    questions: baseListening.questions.map((q) => ({
+      ...q,
+      id: `${packId}-lq${q.questionNumber}`,
+    })),
   };
 
   // 3. Writing Set (Dynamic seeded percentages matching model response!)
