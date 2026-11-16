@@ -7,7 +7,6 @@ import {
   BookMarked,
   BarChart3,
   Calculator,
-  Sparkles,
   ArrowUpRight,
 } from 'lucide-react';
 import { NavTab } from '../types/ielts';
@@ -41,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Brand Header (Focotech Style) */}
         <div className="mb-7 flex items-center gap-2.5 px-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF7A38] to-[#EA580C] text-white shadow-sm shadow-orange-500/30">
-            <Sparkles className="h-5 w-5" />
+            <span className="text-sm font-black tracking-tight">SI</span>
           </div>
           <div>
             <span className="text-lg font-extrabold tracking-tight text-slate-900">

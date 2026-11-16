@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: 'SIELTS — Interactive IELTS Academy & Simulator',
   description:
     'Interactive IELTS learning platform with all 17 question type strategies, multi-accent neural audio, computer-delivered simulations, and AI study coach.',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
