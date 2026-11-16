@@ -37,21 +37,17 @@ import { SPEAKING_BANK } from './data/speakingBank';
 import { VOCAB_BANK } from './data/vocabBank';
 import { roundIeltsBand } from './utils/grading';
 
-const STORAGE_KEY = 'selfielts-profile-v1';
+const STORAGE_KEY = 'sielts-profile-v2';
 
 const DEFAULT_PROFILE: UserProfileState = {
   candidateName: 'Naufal Rama',
   stream: 'academic',
   targetBand: 7.5,
-  xpPoints: 420,
-  streakDays: 7,
-  activeWeekDays: [0, 1, 2, 4],
-  weeklyMinutes: [35, 50, 72, 25, 48, 30, 15],
-  checklistState: {
-    'r-c1': true,
-    'r-c5': true,
-    'w-c1': true,
-  },
+  xpPoints: 0,
+  streakDays: 0,
+  activeWeekDays: [],
+  weeklyMinutes: [0, 0, 0, 0, 0, 0, 0],
+  checklistState: {},
   completedSets: {},
   errorLog: [],
   writingDrafts: {},
@@ -59,6 +55,31 @@ const DEFAULT_PROFILE: UserProfileState = {
   masteredVocabIds: [],
   customVocabCards: [],
 };
+
+function getTodayWeekIndex(): number {
+  return (new Date().getDay() + 6) % 7;
+}
+
+function applyStudyActivity(
+  prev: UserProfileState,
+  minutesAdded: number,
+  xpAdded: number
+): UserProfileState {
+  const todayIdx = getTodayWeekIndex();
+  const nextActiveWeekDays = prev.activeWeekDays.includes(todayIdx)
+    ? prev.activeWeekDays
+    : [...prev.activeWeekDays, todayIdx].sort((a, b) => a - b);
+  const nextWeeklyMinutes = [...prev.weeklyMinutes];
+  nextWeeklyMinutes[todayIdx] = (nextWeeklyMinutes[todayIdx] ?? 0) + Math.max(0, minutesAdded);
+
+  return {
+    ...prev,
+    xpPoints: prev.xpPoints + Math.max(0, xpAdded),
+    streakDays: Math.max(prev.streakDays, nextActiveWeekDays.length),
+    activeWeekDays: nextActiveWeekDays,
+    weeklyMinutes: nextWeeklyMinutes,
+  };
+}
 
 function loadInitialProfile(): UserProfileState {
   try {
@@ -166,25 +187,47 @@ export function App() {
       return roundIeltsBand(mean);
     };
 
-    const draftCount = Object.values(profile.writingDrafts).filter(
-      (txt) => txt.trim().length > 100
-    ).length;
+    const nonEmptyDrafts = Object.values(profile.writingDrafts)
+      .map((txt) => txt.trim())
+      .filter(Boolean);
+    const maxDraftWords =
+      nonEmptyDrafts.length > 0
+        ? Math.max(...nonEmptyDrafts.map((t) => t.split(/\s+/).filter(Boolean).length))
+        : 0;
+    const writingFromSets = avgFor('writing', 0);
+
+    const hasSpeakingNotes = Object.values(profile.speakingNotes).some(
+      (n) => n.trim().length > 10
+    );
+    const speakingFromSets = avgFor('speaking', 0);
 
     return {
-      reading: avgFor('reading', 6.5),
-      listening: avgFor('listening', 6.5),
-      writing: draftCount > 0 ? 7.0 : 6.0,
-      speaking: Object.keys(profile.speakingNotes).length > 0 ? 7.0 : 6.5,
+      reading: avgFor('reading', 0),
+      listening: avgFor('listening', 0),
+      writing:
+        writingFromSets > 0
+          ? writingFromSets
+          : nonEmptyDrafts.length > 0
+            ? maxDraftWords >= 50
+              ? 6.5
+              : 5.5
+            : 0,
+      speaking:
+        speakingFromSets > 0
+          ? speakingFromSets
+          : hasSpeakingNotes
+            ? 6.5
+            : 0,
     };
   }, [profile]);
 
-  const estimatedOverallBand = useMemo(
-    () =>
-      roundIeltsBand(
-        (skillBands.reading + skillBands.listening + skillBands.writing + skillBands.speaking) / 4
-      ),
-    [skillBands]
-  );
+  const estimatedOverallBand = useMemo(() => {
+    const activeBands = Object.values(skillBands).filter((b) => b > 0);
+    if (activeBands.length === 0) return 0;
+    return roundIeltsBand(
+      activeBands.reduce((sum, b) => sum + b, 0) / activeBands.length
+    );
+  }, [skillBands]);
 
   // Instant cross-module search index
   const searchResults = useMemo(() => {
@@ -329,16 +372,14 @@ export function App() {
     newErrors: ErrorLogEntry[]
   ) => {
     setProfile((prev) => {
-      const updatedMinutes = [...prev.weeklyMinutes];
-      updatedMinutes[2] = (updatedMinutes[2] ?? 0) + Math.max(2, record.minutesSpent);
+      const earnedXp = record.correctCount * 15 + 25;
+      const updated = applyStudyActivity(prev, Math.max(2, record.minutesSpent), earnedXp);
       return {
-        ...prev,
-        xpPoints: prev.xpPoints + record.correctCount * 15 + 25,
+        ...updated,
         completedSets: {
           ...prev.completedSets,
           [record.setId]: record,
         },
-        weeklyMinutes: updatedMinutes,
         errorLog: [...newErrors, ...prev.errorLog].slice(0, 60),
       };
     });
@@ -508,13 +549,17 @@ export function App() {
                 stream={profile.stream}
                 checklistState={profile.checklistState}
                 onToggleChecklist={(id) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    checklistState: {
-                      ...prev.checklistState,
-                      [id]: !prev.checklistState[id],
-                    },
-                  }))
+                  setProfile((prev) => {
+                    const nextVal = !prev.checklistState[id];
+                    const nextState: UserProfileState = {
+                      ...prev,
+                      checklistState: {
+                        ...prev.checklistState,
+                        [id]: nextVal,
+                      },
+                    };
+                    return nextVal ? applyStudyActivity(nextState, 1, 5) : nextState;
+                  })
                 }
                 onLaunchPractice={(sk) => {
                   setExerciseSkillFilter(sk);
@@ -543,22 +588,36 @@ export function App() {
                 onGenerateBonusDaily={() => setDailyVariant((v) => v + 1)}
                 onRecordCompletion={handleRecordCompletion}
                 onSaveWritingDraft={(promptId, text) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    writingDrafts: {
-                      ...prev.writingDrafts,
-                      [promptId]: text,
-                    },
-                  }))
+                  setProfile((prev) => {
+                    const prevLen = (prev.writingDrafts[promptId] ?? '').trim().length;
+                    const nextLen = text.trim().length;
+                    const nextState: UserProfileState = {
+                      ...prev,
+                      writingDrafts: {
+                        ...prev.writingDrafts,
+                        [promptId]: text,
+                      },
+                    };
+                    return prevLen <= 30 && nextLen > 30
+                      ? applyStudyActivity(nextState, 5, 25)
+                      : nextState;
+                  })
                 }
                 onSaveSpeakingNote={(setId, notes) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    speakingNotes: {
-                      ...prev.speakingNotes,
-                      [setId]: notes,
-                    },
-                  }))
+                  setProfile((prev) => {
+                    const prevLen = (prev.speakingNotes[setId] ?? '').trim().length;
+                    const nextLen = notes.trim().length;
+                    const nextState: UserProfileState = {
+                      ...prev,
+                      speakingNotes: {
+                        ...prev.speakingNotes,
+                        [setId]: notes,
+                      },
+                    };
+                    return prevLen <= 10 && nextLen > 10
+                      ? applyStudyActivity(nextState, 3, 20)
+                      : nextState;
+                  })
                 }
               />
             )}
@@ -571,24 +630,29 @@ export function App() {
                   setProfile((prev) => {
                     const current = prev.masteredVocabIds ?? [];
                     const exists = current.includes(cardId);
-                    return {
+                    const nextState: UserProfileState = {
                       ...prev,
-                      xpPoints: exists ? prev.xpPoints : prev.xpPoints + 20,
                       masteredVocabIds: exists
                         ? current.filter((id) => id !== cardId)
                         : [...current, cardId],
                     };
+                    return exists ? nextState : applyStudyActivity(nextState, 1, 20);
                   })
                 }
                 onAddCustomCard={(card: VocabCard) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    xpPoints: prev.xpPoints + 10,
-                    customVocabCards: [card, ...(prev.customVocabCards ?? [])],
-                  }))
+                  setProfile((prev) =>
+                    applyStudyActivity(
+                      {
+                        ...prev,
+                        customVocabCards: [card, ...(prev.customVocabCards ?? [])],
+                      },
+                      1,
+                      10
+                    )
+                  )
                 }
                 onAwardXp={(amount) =>
-                  setProfile((prev) => ({ ...prev, xpPoints: prev.xpPoints + amount }))
+                  setProfile((prev) => applyStudyActivity(prev, 1, amount))
                 }
               />
             )}
@@ -638,7 +702,16 @@ export function App() {
           onUpdateTargetBand={(targetBand) =>
             setProfile((p) => ({ ...p, targetBand }))
           }
+          onResetProfile={() => {
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+            } catch {
+              // Ignore storage cleanup errors
+            }
+            setProfile(DEFAULT_PROFILE);
+          }}
           estimatedOverallBand={estimatedOverallBand}
+          activeSkillsCount={Object.values(skillBands).filter((b) => b > 0).length}
           completedSetsCount={completedSetsCount}
           totalSetsCount={totalSetsCount}
         />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Flame,
   Target,
@@ -11,6 +11,7 @@ import {
   Pencil,
   Check,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import { UserProfileState } from '../types/ielts';
 
@@ -20,13 +21,14 @@ interface RightPanelProps {
   onToggleOpen: () => void;
   onUpdateName: (name: string) => void;
   onUpdateTargetBand: (band: number) => void;
+  onResetProfile: () => void;
   estimatedOverallBand: number;
+  activeSkillsCount: number;
   completedSetsCount: number;
   totalSetsCount: number;
 }
 
 const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEEK_DATES = [16, 17, 18, 19, 20, 21, 22];
 
 export const RightPanel: React.FC<RightPanelProps> = ({
   profile,
@@ -34,13 +36,35 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   onToggleOpen,
   onUpdateName,
   onUpdateTargetBand,
+  onResetProfile,
   estimatedOverallBand,
+  activeSkillsCount,
   completedSetsCount,
   totalSetsCount,
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(profile.candidateName);
-  const [selectedDayIdx, setSelectedDayIdx] = useState<number>(2);
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number>(0);
+  const [weekMeta, setWeekMeta] = useState<{
+    weekDates: (number | string)[];
+    monthLabel: string;
+  }>({
+    weekDates: ['--', '--', '--', '--', '--', '--', '--'],
+    monthLabel: 'This Week',
+  });
+
+  useEffect(() => {
+    const now = new Date();
+    const todayIdx = (now.getDay() + 6) % 7;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - todayIdx);
+    const weekDates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      return d.getDate();
+    });
+    const monthLabel = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    setWeekMeta({ weekDates, monthLabel });
+    setSelectedDayIdx(todayIdx);
+  }, []);
 
   if (!isOpen) {
     return (
@@ -67,7 +91,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   return (
     <aside className="w-full shrink-0 border-t border-orange-100/80 bg-soft-grid px-4 py-4 xl:w-80 xl:border-t-0 xl:border-l">
       {/* Top Collapse Bar matching Focotech "Close Details" */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <button
           onClick={onToggleOpen}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#FF6B2C] hover:text-[#EA580C]"
@@ -75,9 +99,19 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <ChevronRight className="h-3.5 w-3.5 rounded-full border border-orange-300 p-0.5" />
           <span>Close Details</span>
         </button>
-        <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-[10px] font-bold text-[#EA580C]">
-          Study Analytics
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onResetProfile}
+            title="Reset local study stats to zero"
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 transition hover:border-rose-300 hover:text-rose-600"
+          >
+            <RotateCcw className="h-2.5 w-2.5" />
+            <span>Reset</span>
+          </button>
+          <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-[10px] font-bold text-[#EA580C]">
+            Study Analytics
+          </span>
+        </div>
       </div>
 
       {/* Candidate Profile Card */}
@@ -184,7 +218,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             <Info className="h-3.5 w-3.5 text-slate-400" />
           </div>
           <span className="rounded-lg border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-            Nov 2026
+            {weekMeta.monthLabel}
           </span>
         </div>
 
@@ -208,7 +242,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                 }`}
               >
                 <span className="text-[10px] font-medium opacity-90">{day}</span>
-                <span className="mt-0.5 text-xs font-bold">{WEEK_DATES[idx]}</span>
+                <span className="mt-0.5 text-xs font-bold">{weekMeta.weekDates[idx]}</span>
               </div>
             );
           })}
@@ -222,9 +256,11 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             <BookOpen className="h-4 w-4" />
           </div>
           <p className="mt-2.5 text-sm font-bold text-slate-900">
-            4 Skills
+            {activeSkillsCount}/4 Skills
           </p>
-          <p className="text-[11px] text-slate-500">In Progress</p>
+          <p className="text-[11px] text-slate-500">
+            {activeSkillsCount > 0 ? 'Active' : 'In Progress'}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-orange-100/80 bg-white p-3.5 shadow-2xs">
@@ -253,7 +289,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <div className="mt-5 flex h-28 items-end justify-between gap-2 px-1">
           {WEEK_LABELS.map((day, idx) => {
             const mins = profile.weeklyMinutes[idx] ?? 0;
-            const pct = Math.max(12, Math.round((mins / maxWeeklyMin) * 100));
+            const pct = mins === 0 ? 4 : Math.max(12, Math.round((mins / maxWeeklyMin) * 100));
             const isSelected = selectedDayIdx === idx;
             return (
               <button

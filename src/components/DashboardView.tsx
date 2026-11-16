@@ -76,20 +76,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const completedReadingCount = streamReadingSets.filter(
     (r) => profile.completedSets[r.id]
   ).length;
-  const readingProgressPct = Math.max(
-    18,
-    Math.round(
-      ((completedReadingCount + readingCheckDone / 10) / (streamReadingSets.length + 1)) * 100
-    )
+  const readingProgressPct = Math.round(
+    ((completedReadingCount + readingCheckDone / 10) / (streamReadingSets.length + 1)) * 100
   );
 
   const completedListeningCount = LISTENING_BANK.filter(
     (l) => profile.completedSets[l.id]
   ).length;
-  const listeningProgressPct = Math.max(
-    14,
-    Math.round((completedListeningCount / LISTENING_BANK.length) * 100)
-  );
+  const listeningProgressPct = Math.round((completedListeningCount / LISTENING_BANK.length) * 100);
 
   const recommendedCards = [
     {
@@ -472,7 +466,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                   <span className="font-mono text-[10px] font-semibold text-white/90">00:00</span>
                   <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/30">
-                    <div className="h-full w-1/3 rounded-full bg-white" />
+                    <div
+                      className={`h-full rounded-full bg-white transition-all ${
+                        profile.completedSets[card.setId] ? 'w-full' : 'w-0'
+                      }`}
+                    />
                   </div>
                   <span className="font-mono text-[10px] font-semibold text-white/90">
                     {card.duration}
