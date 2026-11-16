@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: linear-gradient(135deg, #F06D37 0%, #F78248 50%, #F56E33 100%);
+    color: #1F2430;
+    min-height: 100vh;
+  }
+}
+
+/* Custom subtle scrollbars matching Focotech clean workspace */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.5);
+}
+
+/* Graph grid subtle pattern for right sidebar */
+.bg-soft-grid {
+  background-color: #FFFBF7;
+  background-image:
+    linear-gradient(to right, rgba(249, 115, 22, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(249, 115, 22, 0.045) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Computer-delivered exam contrast themes */
+.exam-theme-standard {
+  --exam-bg: #FFFFFF;
+  --exam-surface: #F9FAFB;
+  --exam-text: #111827;
+  --exam-muted: #6B7280;
+  --exam-border: #E5E7EB;
+  --exam-accent: #FF6B2C;
+}
+
+.exam-theme-yellow {
+  --exam-bg: #FEF9C3;
+  --exam-surface: #FEF08A;
+  --exam-text: #111827;
+  --exam-muted: #374151;
+  --exam-border: #CA8A04;
+  --exam-accent: #9A3412;
+}
+
+.exam-theme-dark {
+  --exam-bg: #111827;
+  --exam-surface: #1F2937;
+  --exam-text: #F9FAFB;
+  --exam-muted: #9CA3AF;
+  --exam-border: #374151;
+  --exam-accent: #FB923C;
+}

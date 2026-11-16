@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+.env*.local
+*.tsbuildinfo
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Editor directories
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Python local venv
+.venv/
+__pycache__/
+*.pyc
+
+# Dynamically generated daily simulator cache
+public/daily/
